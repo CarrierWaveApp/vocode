@@ -1,0 +1,86 @@
+import SwiftUI
+
+// "Master" is BrandMeister's own name for its servers (see MasterScout).
+// swiftlint:disable inclusive_language
+
+/// Picker over the BrandMeister master directory. Every master is probed on
+/// appear; rows show live round-trip time and tapping one sets the host.
+struct MasterPickerView: View {
+    @EnvironmentObject var settings: Settings
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var scout = MasterScout()
+
+    var body: some View {
+        Form {
+            if let fastestID = scout.fastest,
+               let fastest = BMDirectory.all.first(where: { $0.id == fastestID }) {
+                Section {
+                    row(fastest)
+                } header: {
+                    SectionLabel("Nearest")
+                }
+            }
+            ForEach(BMDirectory.regions, id: \.name) { region in
+                Section {
+                    ForEach(region.masters) { master in
+                        row(master)
+                    }
+                } header: {
+                    SectionLabel(region.name)
+                }
+            }
+        }
+        .cwList()
+        .navigationTitle("Find a master")
+        .toolbarBackground(CW.bg, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .onAppear {
+            let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
+            scout.probeAll(dmrID: dmrID)
+        }
+        .onDisappear { scout.cancelAll() }
+    }
+
+    private func row(_ master: BMMaster) -> some View {
+        Button {
+            settings.host = master.host
+            dismiss()
+        } label: {
+            HStack(spacing: 10) {
+                Text(String(master.id))
+                    .font(CW.mono(14, medium: true))
+                    .foregroundStyle(CW.blue)
+                Text(master.country)
+                    .font(CW.sans(15))
+                    .foregroundStyle(CW.text)
+                if settings.host == master.host {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(CW.green)
+                }
+                Spacer()
+                latencyBadge(scout.results[master.id])
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func latencyBadge(_ state: ProbeState?) -> some View {
+        switch state {
+        case nil, .probing?:
+            Text("· · ·")
+                .font(CW.mono(12))
+                .foregroundStyle(CW.xdim)
+        case .reachable(let millis)?:
+            Text("\(millis) ms")
+                .font(CW.mono(12))
+                .foregroundStyle(millis <= 100 ? CW.green : CW.amber)
+        case .unreachable?:
+            Text("—")
+                .font(CW.mono(12))
+                .foregroundStyle(CW.dim)
+        }
+    }
+}
+
+// swiftlint:enable inclusive_language

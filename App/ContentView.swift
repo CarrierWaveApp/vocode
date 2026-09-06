@@ -480,8 +480,13 @@ struct SettingsView: View {
                             .keyboardType(.numberPad)
                             .font(CW.mono(14))
                     }
+                    NavigationLink("Find a master") { MasterPickerView() }
                 } header: {
                     SectionLabel("Master")
+                } footer: {
+                    Text("Pings every BrandMeister master and lets you pick the closest.")
+                        .font(CW.mono(11))
+                        .foregroundStyle(CW.dim)
                 }
                 Section {
                     TextField("DMR ID", text: settings.$dmrID)
