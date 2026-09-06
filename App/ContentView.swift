@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
     @State private var showSettings = false
+    @AppStorage("tgCollapsed") private var tgCollapsed = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,34 @@ struct ContentView: View {
                     }
                 }
                 Section {
+                    tgHeader
+                    if !tgCollapsed {
+                        ForEach(settings.talkgroupList.filter { $0.tg > 0 }) { tg in
+                            TGRow(
+                                tg: tg,
+                                isTX: settings.txTargetTG == Int(tg.tg),
+                                cycle: {
+                                    settings.cycleListen(tg.tg)
+                                    model.applyListenStates(settings)
+                                },
+                                selectTX: {
+                                    guard tg.listen == .live else { return }
+                                    settings.txTargetTG =
+                                        settings.txTargetTG == Int(tg.tg) ? 0 : Int(tg.tg)
+                                }
+                            )
+                        }
+                    }
+                } header: {
+                    SectionLabel("Talkgroups")
+                } footer: {
+                    if !tgCollapsed, !settings.talkgroupList.isEmpty {
+                        Text("tap speaker to cycle live → muted → off · tap TX to set the talk target")
+                            .font(CW.mono(11))
+                            .foregroundStyle(CW.dim)
+                    }
+                }
+                Section {
                     if model.heard.isEmpty {
                         Text("Nothing heard yet")
                             .foregroundStyle(CW.dim)
@@ -33,12 +62,17 @@ struct ContentView: View {
                     ForEach(model.heard) { entry in
                         HeardRow(
                             entry: entry,
-                            muted: model.muted.contains(entry.dst),
+                            muted: model.isSilenced(entry.dst),
                             tgName: settings.tgName(entry.dst)
                         )
                             .swipeActions {
-                                Button(model.muted.contains(entry.dst) ? "Unmute TG" : "Mute TG") {
-                                    model.toggleMute(entry.dst)
+                                Button(model.isSilenced(entry.dst) ? "Unmute TG" : "Mute TG") {
+                                    if let state = settings.listenState(entry.dst) {
+                                        settings.setListen(entry.dst, state == .live ? .muted : .live)
+                                        model.applyListenStates(settings)
+                                    } else {
+                                        model.toggleMute(entry.dst)
+                                    }
                                 }
                                 .tint(CW.amber)
                             }
@@ -48,6 +82,15 @@ struct ContentView: View {
                 }
             }
             .cwList()
+            .safeAreaInset(edge: .bottom) {
+                if model.isConnected {
+                    TalkBar(
+                        target: settings.txTarget,
+                        armed: settings.txTarget?.listen == .live,
+                        onTalk: { model.noteTxAttempt() }
+                    )
+                }
+            }
             .navigationTitle("DMR Monitor")
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -72,6 +115,56 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
     }
 
+    private var tgHeader: some View {
+        let list = settings.talkgroupList.filter { $0.tg > 0 }
+        let live = list.filter { $0.listen == .live }.count
+        let mutedCount = list.filter { $0.listen == .muted }.count
+        let off = list.filter { $0.listen == .off }.count
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) { tgCollapsed.toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: tgCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CW.dim)
+                if tgCollapsed, let lead = settings.txTarget ?? list.first(where: { $0.listen == .live }) {
+                    Text(lead.name.isEmpty ? "TG \(lead.tg)" : lead.name)
+                        .font(CW.sans(14, .medium))
+                        .foregroundStyle(CW.white)
+                    if list.count > 1 {
+                        Text("+\(list.count - 1)")
+                            .font(CW.sans(14))
+                            .foregroundStyle(CW.dim)
+                    }
+                } else {
+                    Text("\(list.count) talkgroup\(list.count == 1 ? "" : "s")")
+                        .font(CW.sans(14, .medium))
+                        .foregroundStyle(CW.white)
+                }
+                Spacer()
+                HStack(spacing: 8) {
+                    countDot(live, CW.green)
+                    countDot(mutedCount, CW.amber)
+                    countDot(off, CW.xdim)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func countDot(_ n: Int, _ color: Color) -> some View {
+        if n > 0 {
+            HStack(spacing: 3) {
+                Circle().fill(color).frame(width: 6, height: 6)
+                Text("\(n)")
+                    .font(CW.mono(10))
+                    .foregroundStyle(CW.dim)
+            }
+        }
+    }
+
     private var statusRow: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
@@ -94,17 +187,118 @@ struct ContentView: View {
             if let err = model.audioError {
                 Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
             }
-            let tgSummary = settings.talkgroupList
-                .filter { $0.tg > 0 }
-                .map { $0.name.isEmpty ? "\($0.tg)" : "\($0.tg) \($0.name)" }
-                .joined(separator: " · ")
-            if !tgSummary.isEmpty {
-                Text(tgSummary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct TGRow: View {
+    let tg: Talkgroup
+    let isTX: Bool
+    let cycle: () -> Void
+    let selectTX: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: cycle) {
+                Image(systemName: stateIcon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(stateColor)
+                    .frame(width: 34, height: 34)
+                    .background(CW.raised)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9)
+                            .stroke(tg.listen == .off ? CW.border : stateColor.opacity(0.5), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tg.name.isEmpty ? "TG \(tg.tg)" : tg.name)
+                    .font(CW.sans(15, .medium))
+                    .foregroundStyle(tg.listen == .off ? CW.dim : CW.white)
+                Text("TG \(tg.tg) · \(tg.listen.rawValue.uppercased())")
                     .font(CW.mono(11))
                     .foregroundStyle(CW.dim)
             }
+            Spacer()
+            Button(action: selectTX) {
+                VStack(spacing: 3) {
+                    ZStack {
+                        Circle()
+                            .stroke(isTX ? CW.blue : CW.xdim, lineWidth: 2)
+                            .frame(width: 18, height: 18)
+                        if isTX {
+                            Circle().fill(CW.blue).frame(width: 9, height: 9)
+                        }
+                    }
+                    Text("TX")
+                        .font(CW.mono(9))
+                        .foregroundStyle(CW.dim)
+                }
+                .opacity(tg.listen == .live || isTX ? 1 : 0.35)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
+    }
+
+    private var stateIcon: String {
+        switch tg.listen {
+        case .live: return "speaker.wave.2.fill"
+        case .muted: return "speaker.slash.fill"
+        case .off: return "power"
+        }
+    }
+
+    private var stateColor: Color {
+        switch tg.listen {
+        case .live: return CW.green
+        case .muted: return CW.amber
+        case .off: return CW.xdim
+        }
+    }
+}
+
+struct TalkBar: View {
+    let target: Talkgroup?
+    let armed: Bool
+    let onTalk: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 15))
+                .foregroundStyle(armed ? CW.blue : CW.xdim)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(target.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name } ?? "No TX target")
+                    .font(CW.sans(14, .semibold))
+                    .foregroundStyle(target != nil ? CW.white : CW.dim)
+                Text(subtitle)
+                    .font(CW.mono(10))
+                    .tracking(0.8)
+                    .foregroundStyle(CW.dim)
+            }
+            Spacer()
+            Button("Hold to talk", action: onTalk)
+                .buttonStyle(PillButtonStyle(filled: armed))
+                .disabled(!armed)
+                .opacity(armed ? 1 : 0.45)
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
+        .background(CW.raised)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(CW.border, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+    }
+
+    private var subtitle: String {
+        guard let target else { return "SELECT IN TALKGROUPS" }
+        return target.listen == .live
+            ? "TX TARGET · TG \(target.tg)"
+            : "TX DISARMED · TG \(target.tg)"
     }
 }
 

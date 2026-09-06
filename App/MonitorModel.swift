@@ -91,9 +91,11 @@ final class DecodePipeline {
 final class MonitorModel: ObservableObject {
     @Published var link: LinkState = .idle
     @Published var heard: [HeardEntry] = []
-    @Published var muted: Set<UInt32> = [] {
-        didSet { pipeline.setMuted(muted) }
-    }
+    // Ad-hoc mutes for talkgroups not in the configured list
+    @Published var muted: Set<UInt32> = []
+    // Configured talkgroups silenced via listen state (muted or off)
+    private var silenced: Set<UInt32> = []
+    private var otpSubscribed: Set<UInt32> = []
     @Published var audioError: String?
     @Published var log: [LogEntry] = []
 
@@ -184,7 +186,9 @@ final class MonitorModel: ObservableObject {
             Task { @MainActor in self?.closeCall(callID) }
         }
         rewind = c
+        otpSubscribed = Set(cfg.talkgroups)
         c.connect()
+        applyListenStates(settings)
     }
 
     func disconnect() {
@@ -193,6 +197,7 @@ final class MonitorModel: ObservableObject {
         client = nil
         rewind?.disconnect()
         rewind = nil
+        otpSubscribed = []
         pipeline.stopAudio()
         link = .idle
     }
@@ -206,6 +211,33 @@ final class MonitorModel: ObservableObject {
 
     func toggleMute(_ tg: UInt32) {
         if muted.contains(tg) { muted.remove(tg) } else { muted.insert(tg) }
+        pipeline.setMuted(muted.union(silenced))
+    }
+
+    func isSilenced(_ tg: UInt32) -> Bool {
+        muted.contains(tg) || silenced.contains(tg)
+    }
+
+    // Push the configured listen states into the audio path and, on OTP,
+    // diff the network subscriptions live.
+    func applyListenStates(_ settings: Settings) {
+        silenced = settings.silencedTalkgroups
+        pipeline.setMuted(muted.union(silenced))
+        if let rewind {
+            let desired = Set(settings.activeTalkgroups)
+            for tg in desired.subtracting(otpSubscribed) {
+                rewind.setSubscription(tg, active: true)
+            }
+            for tg in otpSubscribed.subtracting(desired) {
+                rewind.setSubscription(tg, active: false)
+            }
+            otpSubscribed = desired
+        }
+    }
+
+    // TX isn't implemented; keep the tap honest in the log
+    func noteTxAttempt() {
+        appendLog("transmit not implemented yet", error: true)
     }
 
     func clearHeard() { heard.removeAll() }

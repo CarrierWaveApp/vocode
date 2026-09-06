@@ -1,10 +1,38 @@
 import Foundation
 import SwiftUI
 
+enum ListenState: String, Codable {
+    case live, muted, off
+
+    var next: ListenState {
+        switch self {
+        case .live: return .muted
+        case .muted: return .off
+        case .off: return .live
+        }
+    }
+}
+
 struct Talkgroup: Codable, Identifiable, Equatable {
-    var id = UUID()
+    var id: UUID
     var tg: UInt32
     var name: String
+    var listen: ListenState
+
+    init(id: UUID = UUID(), tg: UInt32, name: String = "", listen: ListenState = .live) {
+        self.id = id
+        self.tg = tg
+        self.name = name
+        self.listen = listen
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        tg = try c.decode(UInt32.self, forKey: .tg)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        listen = try c.decodeIfPresent(ListenState.self, forKey: .listen) ?? .live
+    }
 }
 
 // Persisted in UserDefaults via @AppStorage
@@ -20,6 +48,7 @@ final class Settings: ObservableObject {
     @AppStorage("options") var options = "TS2_1=91;TS2_2=3100"
     @AppStorage("location") var location = ""
     @AppStorage("talkgroupsJSON") var talkgroupsJSON = ""
+    @AppStorage("txTargetTG") var txTargetTG = 0
 
     init() {
         // Migrate the old free-text options field once
@@ -47,12 +76,54 @@ final class Settings: ObservableObject {
         return (name?.isEmpty ?? true) ? nil : name
     }
 
+    // MARK: - Listen states and TX target
+
+    func listenState(_ tg: UInt32) -> ListenState? {
+        talkgroupList.first { $0.tg == tg }?.listen
+    }
+
+    func setListen(_ tg: UInt32, _ state: ListenState) {
+        var list = talkgroupList
+        guard let i = list.firstIndex(where: { $0.tg == tg }) else { return }
+        list[i].listen = state
+        talkgroupList = list
+    }
+
+    func cycleListen(_ tg: UInt32) {
+        guard let current = listenState(tg) else { return }
+        setListen(tg, current.next)
+    }
+
+    var txTarget: Talkgroup? {
+        guard txTargetTG > 0 else { return nil }
+        return talkgroupList.first { $0.tg == UInt32(txTargetTG) }
+    }
+
+    // Subscribed on the network (live + muted)
+    var activeTalkgroups: [UInt32] {
+        talkgroupList.filter { $0.tg > 0 && $0.listen != .off }.map(\.tg)
+    }
+
+    // Locally silenced (muted + off; off is belt-and-braces for homebrew,
+    // where mid-session unsubscribe isn't possible)
+    var silencedTalkgroups: Set<UInt32> {
+        Set(talkgroupList.filter { $0.tg > 0 && $0.listen != .live }.map(\.tg))
+    }
+
     var repeaterID: UInt32? {
         UInt32(dmrID.trimmingCharacters(in: .whitespaces) + suffix.trimmingCharacters(in: .whitespaces))
     }
 
     var talkgroups: [UInt32] {
         talkgroupList.map(\.tg).filter { $0 > 0 }
+    }
+
+    // MMDVMHost-style options string for the homebrew RPTO packet;
+    // off talkgroups are left out entirely
+    var homebrewOptions: String {
+        activeTalkgroups.enumerated()
+            .map { "TS2_\($0.offset + 1)=\($0.element)" }
+            .joined(separator: ";")
     }
 
     // Accepts both MMDVMHost options ("TS2_1=91;TS2_2=3100") and a bare
@@ -64,12 +135,6 @@ final class Settings: ObservableObject {
         }
     }
 
-    // MMDVMHost-style options string for the homebrew RPTO packet
-    var homebrewOptions: String {
-        talkgroups.enumerated()
-            .map { "TS2_\($0.offset + 1)=\($0.element)" }
-            .joined(separator: ";")
-    }
 
     var rewindConfig: RewindConfig? {
         guard let id = UInt32(dmrID.trimmingCharacters(in: .whitespaces)),
@@ -80,7 +145,7 @@ final class Settings: ObservableObject {
             port: UInt16(otpPort),
             dmrID: id,
             password: password,
-            talkgroups: talkgroups
+            talkgroups: activeTalkgroups
         )
     }
 

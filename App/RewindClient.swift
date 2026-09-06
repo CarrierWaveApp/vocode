@@ -146,6 +146,22 @@ final class RewindClient {
         }
     }
 
+    // Runtime subscription change while connected
+    func setSubscription(_ tg: UInt32, active: Bool) {
+        queue.async { [weak self] in
+            guard let self, self.state == .running else { return }
+            var payload = [UInt8](self.le32(7))
+            payload.append(contentsOf: self.le32(tg))
+            if active {
+                self.log("→ subscribe TG \(tg)")
+                self.sendFrame(.subscription, payload)
+            } else {
+                self.log("→ unsubscribe TG \(tg)")
+                self.sendFrame(.cancelling, payload)
+            }
+        }
+    }
+
     private func startTimer() {
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now() + 5, repeating: 5)
