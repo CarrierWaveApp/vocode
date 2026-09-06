@@ -156,6 +156,7 @@ final class MonitorModel: ObservableObject {
             // swiftlint:disable:next inclusive_language
             if let (master, millis) = fastest {
                 settings.host = master.host
+                settings.otpPort = Int(MasterScout.openTerminalPort)
                 self.appendLog("nearest master: \(master.id) \(master.country), \(millis) ms")
             } else {
                 self.appendLog("no master reachable, trying \(settings.host)", error: true)

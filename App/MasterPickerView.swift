@@ -9,6 +9,12 @@ struct MasterPickerView: View {
     @EnvironmentObject var settings: Settings
     @Environment(\.dismiss) private var dismiss
     @StateObject private var scout = MasterScout()
+    @State private var customHost = ""
+    @State private var customPort = Int(MasterScout.openTerminalPort)
+
+    private var trimmedCustomHost: String {
+        customHost.trimmingCharacters(in: .whitespaces)
+    }
 
     var body: some View {
         Form {
@@ -36,17 +42,55 @@ struct MasterPickerView: View {
                     SectionLabel(region.name)
                 }
             }
+            Section {
+                TextField("Host", text: $customHost)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(CW.mono(14))
+                TextField("Port", value: $customPort, format: .number)
+                    .keyboardType(.numberPad)
+                    .font(CW.mono(14))
+                Button {
+                    settings.host = trimmedCustomHost
+                    settings.otpPort = customPort
+                    settings.autoMaster = false
+                    dismiss()
+                } label: {
+                    HStack(spacing: 10) {
+                        Text("Use this server")
+                            .font(CW.sans(15))
+                        if settings.host == trimmedCustomHost, !trimmedCustomHost.isEmpty {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(CW.green)
+                        }
+                    }
+                }
+                .disabled(trimmedCustomHost.isEmpty || customPort <= 0 || customPort > 65535)
+            } header: {
+                SectionLabel("Custom")
+            } footer: {
+                Text("Any Open Terminal server. BrandMeister masters use port 54006.")
+                    .font(CW.mono(11))
+                    .foregroundStyle(CW.dim)
+            }
         }
         .cwList()
         .navigationTitle("Find a master")
         .toolbarBackground(CW.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
+            // Pre-fill the custom fields when the selection is already custom
+            if BMDirectory.master(forHost: settings.host) == nil, !settings.host.isEmpty {
+                customHost = settings.host
+                customPort = settings.otpPort
+            }
             let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
             scout.probeAll(dmrID: dmrID) { fastest in
                 // Mirror what connect will do so the checkmark shows it
                 if settings.autoMaster, let (master, _) = fastest {
                     settings.host = master.host
+                    settings.otpPort = Int(MasterScout.openTerminalPort)
                 }
             }
         }
@@ -56,6 +100,7 @@ struct MasterPickerView: View {
     private func row(_ master: BMMaster) -> some View {
         Button {
             settings.host = master.host
+            settings.otpPort = Int(MasterScout.openTerminalPort)
             settings.autoMaster = false
             dismiss()
         } label: {

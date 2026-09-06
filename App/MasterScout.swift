@@ -105,12 +105,16 @@ final class MasterScout: ObservableObject {
     private var generation = 0
     private var completion: ((BMMaster, Int)?) -> Void = { _ in }
 
-    private static let openTerminalPort: UInt16 = 54006
+    static let openTerminalPort: UInt16 = 54006
+    /// Key in `results` for a custom (non-directory) host probe.
+    static let customKey: UInt16 = 0
+
     private static let sign = Array("REWIND01".utf8)
     private static let timeout: TimeInterval = 2.5
 
     var fastest: UInt16? {
         results
+            .filter { $0.key != Self.customKey }
             .compactMap { key, value -> (UInt16, Int)? in
                 guard case .reachable(let millis) = value else { return nil }
                 return (key, millis)
@@ -127,7 +131,7 @@ final class MasterScout: ObservableObject {
         pending = BMDirectory.all.count
         for master in BMDirectory.all {
             results[master.id] = .probing
-            probe(master, dmrID: dmrID)
+            probe(key: master.id, host: master.host, port: Self.openTerminalPort, dmrID: dmrID)
         }
     }
 
@@ -135,7 +139,14 @@ final class MasterScout: ObservableObject {
     func probeOne(_ master: BMMaster, dmrID: UInt32) {
         results[master.id] = .probing
         pending += 1
-        probe(master, dmrID: dmrID)
+        probe(key: master.id, host: master.host, port: Self.openTerminalPort, dmrID: dmrID)
+    }
+
+    /// Probes a custom host and port; the result lands under `customKey`.
+    func probeCustom(host: String, port: UInt16, dmrID: UInt32) {
+        results[Self.customKey] = .probing
+        pending += 1
+        probe(key: Self.customKey, host: host, port: port, dmrID: dmrID)
     }
 
     func cancelAll() {
@@ -166,10 +177,10 @@ final class MasterScout: ObservableObject {
         }
     }
 
-    private func probe(_ master: BMMaster, dmrID: UInt32) {
-        guard let port = NWEndpoint.Port(rawValue: Self.openTerminalPort) else { return }
-        let connection = NWConnection(host: NWEndpoint.Host(master.host), port: port, using: .udp)
-        connections[master.id] = connection
+    private func probe(key: UInt16, host: String, port: UInt16, dmrID: UInt32) {
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else { return }
+        let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .udp)
+        connections[key] = connection
         let probeGeneration = generation
 
         // Everything below runs on `queue`, so these are single-threaded.
@@ -180,7 +191,7 @@ final class MasterScout: ObservableObject {
             guard !done else { return }
             done = true
             connection.cancel()
-            DispatchQueue.main.async { self.settle(master.id, state, probeGeneration) }
+            DispatchQueue.main.async { self.settle(key, state, probeGeneration) }
         }
 
         connection.stateUpdateHandler = { state in

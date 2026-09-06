@@ -456,14 +456,21 @@ struct SettingsView: View {
     }
 
     private var serverProbe: ProbeState? {
-        BMDirectory.master(forHost: settings.host).flatMap { scout.results[$0.id] }
+        if let selected = BMDirectory.master(forHost: settings.host) {
+            return scout.results[selected.id]
+        }
+        return scout.results[MasterScout.customKey]
     }
 
     private func probeSelected() {
-        guard settings.netMode != "homebrew",
-              let selected = BMDirectory.master(forHost: settings.host) else { return }
+        guard settings.netMode != "homebrew" else { return }
         let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
-        scout.probeOne(selected, dmrID: dmrID)
+        if let selected = BMDirectory.master(forHost: settings.host) {
+            scout.probeOne(selected, dmrID: dmrID)
+        } else if !settings.host.isEmpty, let port = UInt16(exactly: settings.otpPort) {
+            scout.probeCustom(host: settings.host.trimmingCharacters(in: .whitespaces),
+                              port: port, dmrID: dmrID)
+        }
     }
 
     private var tgList: Binding<[Talkgroup]> {
@@ -607,6 +614,7 @@ struct SettingsView: View {
             .cwList()
             .onAppear { probeSelected() }
             .onChange(of: settings.host) { _, _ in probeSelected() }
+            .onChange(of: settings.otpPort) { _, _ in probeSelected() }
             .navigationTitle("Settings")
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
