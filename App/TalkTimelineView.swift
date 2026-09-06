@@ -31,6 +31,7 @@ struct StationLane: Identifiable {
 struct TalkTimelineView: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
+    @EnvironmentObject var notes: CallNotesStore
     @State private var detail: StationLane?
 
     static let window: TimeInterval = 30
@@ -136,10 +137,10 @@ struct TalkTimelineView: View {
         if !myBursts.isEmpty {
             let call = settings.callsign.trimmingCharacters(in: .whitespaces)
             lanes.append(StationLane(
-                src: 0,
+                src: UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0,
                 label: call.isEmpty ? "You" : call.uppercased(),
                 isSelf: true,
-                note: nil,
+                note: call.isEmpty ? nil : notes.note(for: call),
                 bursts: myBursts
             ))
         }
@@ -169,10 +170,17 @@ struct TalkTimelineView: View {
 struct StationDetailView: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
+    @EnvironmentObject var notes: CallNotesStore
     @Environment(\.dismiss) private var dismiss
     let lane: StationLane
     let color: Color
     @State private var info: CallsignInfo?
+
+    // Fall back to a lookup on the radioid-resolved callsign, which covers
+    // our own lane when the callsign field is empty (Open Terminal mode)
+    private var displayedNote: CallNote? {
+        lane.note ?? info.flatMap { notes.note(for: $0.callsign) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -184,11 +192,14 @@ struct StationDetailView: View {
                             .font(CW.mono(22, medium: true))
                             .foregroundStyle(CW.white)
                         Spacer()
-                        if !lane.isSelf {
+                        if lane.src != 0 {
                             Text(String(lane.src))
                                 .font(CW.mono(13))
                                 .foregroundStyle(CW.dim)
                         }
+                    }
+                    if let call = info?.callsign, call.uppercased() != lane.label.uppercased() {
+                        detailRow("Callsign", call)
                     }
                     if let name = info?.name {
                         detailRow("Name", name)
@@ -196,7 +207,7 @@ struct StationDetailView: View {
                     if let location = info?.location {
                         detailRow("Location", location)
                     }
-                    if !lane.isSelf, info == nil {
+                    if lane.src != 0, info == nil {
                         Text("Looking up radioid.net…")
                             .font(CW.mono(12))
                             .foregroundStyle(CW.dim)
@@ -204,7 +215,7 @@ struct StationDetailView: View {
                 } header: {
                     SectionLabel("Station")
                 }
-                if let note = lane.note {
+                if let note = displayedNote {
                     Section {
                         Text(markdown(note.text))
                             .font(CW.sans(14))
@@ -236,7 +247,7 @@ struct StationDetailView: View {
                 }
             }
             .task {
-                guard !lane.isSelf else { return }
+                guard lane.src != 0 else { return }
                 info = await model.stationInfo(lane.src)
             }
         }
