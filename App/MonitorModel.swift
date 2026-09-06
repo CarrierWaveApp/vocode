@@ -11,6 +11,10 @@ struct HeardEntry: Identifiable, Equatable {
     var ended: Date?
     var callsign: String?
     var note: CallNote?
+    // D-STAR: reflector/module label shown where DMR shows the talkgroup,
+    // and a marker that src is a callsign hash rather than a DMR ID
+    var channel: String?
+    var dstar: Bool = false
 
     var isActive: Bool { ended == nil }
 }
@@ -28,72 +32,6 @@ struct TXBurst: Identifiable, Equatable {
     let dst: UInt32
     let started: Date
     var ended: Date?
-}
-
-// Decode path, runs off the main thread
-final class DecodePipeline {
-    private let decoder = AMBEDecoder()
-    private let audio = AudioOutput()
-    private let queue = DispatchQueue(label: "dmr.decode")
-    private let lock = NSLock()
-    private var muted: Set<UInt32> = []
-    private var currentStream: UInt32 = 0
-
-    var onCallStart: ((DMRDPacket) -> Void)?
-    var onCallEnd: ((UInt32) -> Void)?
-
-    func startAudio() throws { try audio.start() }
-    func stopAudio() { audio.stop() }
-
-    func setMuted(_ set: Set<UInt32>) {
-        lock.withLock { muted = set }
-    }
-
-    func submit(_ pkt: DMRDPacket) {
-        queue.async { [self] in handle(pkt) }
-    }
-
-    // Open Terminal path: frames arrive already extracted and deinterleaved
-    func submitAmbe(_ frames: [[CChar]], dst: UInt32) {
-        queue.async { [self] in
-            if lock.withLock({ muted.contains(dst) }) { return }
-            var pcm: [Float] = []
-            pcm.reserveCapacity(480)
-            for frame in frames {
-                pcm.append(contentsOf: decoder.decode(frame))
-            }
-            audio.play(pcm)
-        }
-    }
-
-    func resetDecoder() {
-        queue.async { [self] in decoder.reset() }
-    }
-
-    private func handle(_ pkt: DMRDPacket) {
-        guard pkt.isGroup else { return }
-
-        if pkt.streamID != currentStream {
-            currentStream = pkt.streamID
-            decoder.reset()
-            onCallStart?(pkt)
-        }
-
-        if pkt.frameType == .dataSync && pkt.dataType == .terminator {
-            onCallEnd?(pkt.streamID)
-            return
-        }
-
-        guard pkt.isVoice, let burst = VoiceBurst(pkt.payload) else { return }
-        if lock.withLock({ muted.contains(pkt.dst) }) { return }
-
-        var pcm: [Float] = []
-        pcm.reserveCapacity(480)
-        for frame in burst.ambeFrames() {
-            pcm.append(contentsOf: decoder.decode(frame))
-        }
-        audio.play(pcm)
-    }
 }
 
 @MainActor
@@ -117,6 +55,7 @@ final class MonitorModel: ObservableObject {
 
     private var client: HomebrewClient?
     private var rewind: RewindClient?
+    private var dstarClient: DExtraClient?
     private var scout: MasterScout?
     private let pipeline = DecodePipeline()
     private let lookup = CallsignLookup()
@@ -141,6 +80,8 @@ final class MonitorModel: ObservableObject {
         if settings.singleTG { settings.enforceSingleLive() }
         if settings.netMode == "homebrew" {
             connectHomebrew(settings)
+        } else if settings.netMode == "dstar" {
+            connectDStar(settings)
         } else if settings.autoMaster {
             findMasterThenConnect(settings)
         } else {
@@ -204,6 +145,58 @@ final class MonitorModel: ObservableObject {
         c.connect()
     }
 
+    private func connectDStar(_ settings: Settings) {
+        guard let cfg = settings.dextraConfig else {
+            link = .failed("check settings")
+            return
+        }
+        startAudio()
+        let reflector = cfg.host.split(separator: ".").first.map(String.init)?.uppercased() ?? cfg.host
+        let channelLabel = "\(reflector) \(cfg.module)"
+        let dextra = DExtraClient(config: cfg)
+        dextra.onState = { [weak self] newState in
+            Task { @MainActor in self?.link = newState }
+        }
+        dextra.onLog = { [weak self] line, isError in
+            Task { @MainActor in self?.appendLog(line, error: isError) }
+        }
+        dextra.onCallStart = { [weak self] streamID, myCall, _ in
+            self?.pipeline.resetDecoder()
+            Task { @MainActor in self?.openDStarCall(id: streamID, callsign: myCall, channel: channelLabel) }
+        }
+        dextra.onAmbe = { [weak self] ambe in
+            self?.pipeline.submitDStar(ambe)
+        }
+        dextra.onCallEnd = { [weak self] streamID in
+            Task { @MainActor in self?.closeCall(streamID) }
+        }
+        dstarClient = dextra
+        dextra.connect()
+    }
+
+    private func openDStarCall(id: UInt32, callsign call: String, channel: String) {
+        for index in heard.indices where heard[index].isActive {
+            heard[index].ended = Date()
+        }
+        var entry = HeardEntry(id: id, src: Self.dstarSrc(call), dst: 0, slot: 0, started: Date())
+        entry.callsign = call
+        entry.note = notes.note(for: call)
+        entry.channel = channel
+        entry.dstar = true
+        heard.insert(entry, at: 0)
+        if heard.count > maxHeard { heard.removeLast() }
+    }
+
+    // Stable pseudo-ID so timeline lanes key by station; the high bit keeps
+    // it clear of real 7-digit DMR IDs and the self-lane sentinel 0
+    private static func dstarSrc(_ call: String) -> UInt32 {
+        var hash: UInt32 = 2_166_136_261
+        for byte in call.utf8 {
+            hash = (hash ^ UInt32(byte)) &* 16_777_619
+        }
+        return hash | 0x8000_0000
+    }
+
     private func connectRewind(_ settings: Settings) {
         guard let cfg = settings.rewindConfig else {
             link = .failed("check settings")
@@ -238,13 +231,15 @@ final class MonitorModel: ObservableObject {
 
     func disconnect() {
         if transmitting { endTransmit() }
-        if client != nil || rewind != nil { appendLog("disconnected") }
+        if client != nil || rewind != nil || dstarClient != nil { appendLog("disconnected") }
         scout?.cancelAll()
         scout = nil
         client?.disconnect()
         client = nil
         rewind?.disconnect()
         rewind = nil
+        dstarClient?.disconnect()
+        dstarClient = nil
         otpSubscribed = []
         pipeline.stopAudio()
         link = .idle

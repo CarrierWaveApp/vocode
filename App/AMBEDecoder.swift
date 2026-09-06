@@ -17,9 +17,20 @@ final class AMBEDecoder {
     // 96-cell frame → 160 float samples
     func decode(_ frame: [CChar]) -> [Float] {
         var out = [Int16](repeating: 0, count: 160)
-        frame.withUnsafeBufferPointer { fp in
-            out.withUnsafeMutableBufferPointer { op in
-                lastErrors = ambe_decode_frame(&ctx, fp.baseAddress, op.baseAddress, quality)
+        frame.withUnsafeBufferPointer { frameBuf in
+            out.withUnsafeMutableBufferPointer { outBuf in
+                lastErrors = ambe_decode_frame(&ctx, frameBuf.baseAddress, outBuf.baseAddress, quality)
+            }
+        }
+        return out.map { Float($0) / 32768.0 }
+    }
+
+    // D-STAR variant: 96-cell frame through the 3600x2400 path
+    func decode2400(_ frame: [CChar]) -> [Float] {
+        var out = [Int16](repeating: 0, count: 160)
+        frame.withUnsafeBufferPointer { frameBuf in
+            out.withUnsafeMutableBufferPointer { outBuf in
+                lastErrors = ambe_decode_frame_2400(&ctx, frameBuf.baseAddress, outBuf.baseAddress, quality)
             }
         }
         return out.map { Float($0) / 32768.0 }

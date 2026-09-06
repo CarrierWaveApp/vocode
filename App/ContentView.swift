@@ -203,6 +203,11 @@ struct ContentView: View {
     }
 
     private var connectedSummary: String {
+        if settings.netMode == "dstar" {
+            let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
+            let name = host.split(separator: ".").first.map(String.init)?.uppercased() ?? host
+            return "\(name) \(settings.dstarModule.uppercased())"
+        }
         if let server = BMDirectory.master(forHost: settings.host) {
             return "\(server.id) \(server.country)"
         }
@@ -429,7 +434,7 @@ struct HeardRow: View {
                             .font(CW.mono(11))
                             .foregroundStyle(CW.dim)
                     }
-                    Tag(tgName ?? "TG \(entry.dst)", color: muted ? CW.amber : CW.blue)
+                    Tag(tgName ?? entry.channel ?? "TG \(entry.dst)", color: muted ? CW.amber : CW.blue)
                     if entry.slot > 0 {
                         Tag("TS\(entry.slot)", color: CW.dim)
                     }
@@ -517,7 +522,7 @@ struct SettingsView: View {
     }
 
     private func probeSelected() {
-        guard settings.netMode != "homebrew" else { return }
+        guard settings.netMode == "openterminal" else { return }
         let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
         if let selected = BMDirectory.master(forHost: settings.host) {
             scout.probeOne(selected, dmrID: dmrID)
@@ -548,6 +553,7 @@ struct SettingsView: View {
                     Picker("Protocol", selection: settings.$netMode) {
                         Text("Open Terminal (BM)").tag("openterminal")
                         Text("Homebrew (hotspot)").tag("homebrew")
+                        Text("D-STAR (XLX)").tag("dstar")
                     }
                     if settings.netMode == "homebrew" {
                         TextField("Host", text: settings.$host)
@@ -556,6 +562,15 @@ struct SettingsView: View {
                             .font(CW.mono(14))
                         TextField("Port", value: settings.$port, format: .number)
                             .keyboardType(.numberPad)
+                            .font(CW.mono(14))
+                    } else if settings.netMode == "dstar" {
+                        TextField("Reflector host", text: settings.$dstarHost)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(CW.mono(14))
+                        TextField("Module", text: settings.$dstarModule)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
                             .font(CW.mono(14))
                     } else {
                         NavigationLink {
@@ -578,7 +593,12 @@ struct SettingsView: View {
                 } header: {
                     SectionLabel("Master")
                 } footer: {
-                    if settings.netMode != "homebrew" {
+                    if settings.netMode == "dstar" {
+                        Text("An XLX or XRF reflector, DExtra port 30001. "
+                            + "Module is the letter to link.")
+                            .font(CW.mono(11))
+                            .foregroundStyle(CW.dim)
+                    } else if settings.netMode != "homebrew" {
                         Text(settings.autoMaster
                             ? "Connect pings every BrandMeister master and uses the fastest."
                             : "Pings every BrandMeister master and lets you pick the closest.")
@@ -587,10 +607,17 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    TextField("DMR ID", text: settings.$dmrID)
-                        .keyboardType(.numberPad)
-                        .font(CW.mono(14))
-                    SecureField("Hotspot password", text: settings.$password)
+                    if settings.netMode == "dstar" {
+                        TextField("Callsign", text: settings.$callsign)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .font(CW.mono(14))
+                    } else {
+                        TextField("DMR ID", text: settings.$dmrID)
+                            .keyboardType(.numberPad)
+                            .font(CW.mono(14))
+                        SecureField("Hotspot password", text: settings.$password)
+                    }
                     if settings.netMode == "homebrew" {
                         TextField("Callsign", text: settings.$callsign)
                             .textInputAutocapitalization(.characters)

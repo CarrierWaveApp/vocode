@@ -5,6 +5,7 @@ struct TalkBurst: Identifiable {
     let start: Date
     let end: Date?
     let dst: UInt32
+    var channel: String?
 
     var id: Date { start }
 }
@@ -14,6 +15,8 @@ struct StationLane: Identifiable {
     let src: UInt32
     let label: String
     let isSelf: Bool
+    // False when src is a D-STAR callsign hash, not a radioid.net DMR ID
+    var hasDMRID = true
     let note: CallNote?
     let bursts: [TalkBurst]
 
@@ -155,8 +158,11 @@ struct TalkTimelineView: View {
                 src: src,
                 label: latest.callsign ?? String(src),
                 isSelf: false,
+                hasDMRID: !latest.dstar,
                 note: entries.compactMap(\.note).first,
-                bursts: entries.reversed().map { TalkBurst(start: $0.started, end: $0.ended, dst: $0.dst) }
+                bursts: entries.reversed().map {
+                    TalkBurst(start: $0.started, end: $0.ended, dst: $0.dst, channel: $0.channel)
+                }
             )
         }
         .sorted { $0.lastActivity > $1.lastActivity }
@@ -192,7 +198,7 @@ struct StationDetailView: View {
                             .font(CW.mono(22, medium: true))
                             .foregroundStyle(CW.white)
                         Spacer()
-                        if lane.src != 0 {
+                        if lane.src != 0, lane.hasDMRID {
                             Text(String(lane.src))
                                 .font(CW.mono(13))
                                 .foregroundStyle(CW.dim)
@@ -207,7 +213,7 @@ struct StationDetailView: View {
                     if let location = info?.location {
                         detailRow("Location", location)
                     }
-                    if lane.src != 0, info == nil {
+                    if lane.src != 0, lane.hasDMRID, info == nil {
                         Text("Looking up radioid.net…")
                             .font(CW.mono(12))
                             .foregroundStyle(CW.dim)
@@ -247,7 +253,7 @@ struct StationDetailView: View {
                 }
             }
             .task {
-                guard lane.src != 0 else { return }
+                guard lane.src != 0, lane.hasDMRID else { return }
                 info = await model.stationInfo(lane.src)
             }
         }
@@ -260,7 +266,7 @@ struct StationDetailView: View {
             Text(burst.start.formatted(date: .omitted, time: .standard))
                 .font(CW.mono(13))
                 .foregroundStyle(CW.text)
-            Text(settings.tgName(burst.dst) ?? "TG \(burst.dst)")
+            Text(settings.tgName(burst.dst) ?? burst.channel ?? "TG \(burst.dst)")
                 .font(CW.sans(13))
                 .foregroundStyle(CW.dim)
             Spacer()

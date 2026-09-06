@@ -17,4 +17,7 @@ void ambe_ctx_init(ambe_ctx *ctx);
 // returns uncorrectable error count
 int ambe_decode_frame(ambe_ctx *ctx, const char *fr, short *out, int uvquality);
 
+// Same contract for D-STAR's AMBE 3600x2400 mode
+int ambe_decode_frame_2400(ambe_ctx *ctx, const char *fr, short *out, int uvquality);
+
 #endif

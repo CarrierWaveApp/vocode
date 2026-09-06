@@ -48,6 +48,8 @@ final class Settings: ObservableObject {
     @AppStorage("options") var options = "TS2_1=91;TS2_2=3100"
     @AppStorage("location") var location = ""
     @AppStorage("talkgroupsJSON") var talkgroupsJSON = ""
+    @AppStorage("dstarHost") var dstarHost = ""
+    @AppStorage("dstarModule") var dstarModule = "B"
     // Open Terminal only: probe all masters at connect and use the fastest.
     // "Master" is BrandMeister's own term for its servers.
     // swiftlint:disable:next inclusive_language
@@ -180,6 +182,14 @@ final class Settings: ObservableObject {
             password: password,
             talkgroups: activeTalkgroups
         )
+    }
+
+    var dextraConfig: DExtraConfig? {
+        let call = callsign.trimmingCharacters(in: .whitespaces).uppercased()
+        let host = dstarHost.trimmingCharacters(in: .whitespaces)
+        let mod = dstarModule.trimmingCharacters(in: .whitespaces).uppercased()
+        guard !call.isEmpty, !host.isEmpty, let module = mod.first else { return nil }
+        return DExtraConfig(host: host, callsign: call, module: module)
     }
 
     var homebrewConfig: HomebrewConfig? {
