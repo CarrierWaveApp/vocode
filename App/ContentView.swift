@@ -456,6 +456,13 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    NavigationLink("Setup guide") { SetupGuideView() }
+                } footer: {
+                    Text("How to get a DMR ID and password, and what goes where.")
+                        .font(CW.mono(11))
+                        .foregroundStyle(CW.dim)
+                }
+                Section {
                     Picker("Protocol", selection: settings.$netMode) {
                         Text("Open Terminal (BM)").tag("openterminal")
                         Text("Homebrew (hotspot)").tag("homebrew")
