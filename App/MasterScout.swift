@@ -78,6 +78,10 @@ enum BMDirectory {
     ]
 
     static var all: [BMMaster] { regions.flatMap(\.masters) }
+
+    static func master(forHost host: String) -> BMMaster? {
+        all.first { $0.host == host.trimmingCharacters(in: .whitespaces) }
+    }
 }
 
 enum ProbeState: Equatable {
@@ -125,6 +129,13 @@ final class MasterScout: ObservableObject {
             results[master.id] = .probing
             probe(master, dmrID: dmrID)
         }
+    }
+
+    /// Probes just one master; used by Settings for the selected one.
+    func probeOne(_ master: BMMaster, dmrID: UInt32) {
+        results[master.id] = .probing
+        pending += 1
+        probe(master, dmrID: dmrID)
     }
 
     func cancelAll() {

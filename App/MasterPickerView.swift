@@ -72,13 +72,17 @@ struct MasterPickerView: View {
                         .foregroundStyle(CW.green)
                 }
                 Spacer()
-                latencyBadge(scout.results[master.id])
+                LatencyBadge(state: scout.results[master.id])
             }
         }
     }
+}
 
-    @ViewBuilder
-    private func latencyBadge(_ state: ProbeState?) -> some View {
+/// Round-trip time chip shared by the picker rows and the Settings row.
+struct LatencyBadge: View {
+    let state: ProbeState?
+
+    var body: some View {
         switch state {
         case nil, .probing?:
             Text("· · ·")

@@ -27,8 +27,8 @@ struct SetupGuideView: View {
             Section {
                 Step(1, "Protocol: Open Terminal. This is BrandMeister's sanctioned mode for apps "
                     + "without a radio, and the only mode that can transmit.")
-                Step(2, "Host: a master near you, like 3103.master.brandmeister.network. "
-                    + "The US masters are 3101 through 3104. Port stays 54006.")
+                Step(2, "Master: automatic by default — Connect pings every BrandMeister master "
+                    + "and uses the fastest. Tap the Master row to see latencies or pin one yourself.")
                 Step(3, "Enter your 7-digit DMR ID (no suffix) and your hotspot security password.")
                 Step(4, "Add talkgroups below, then tap Connect on the main screen. "
                     + "Tap a talkgroup's status to cycle live, muted, off.")

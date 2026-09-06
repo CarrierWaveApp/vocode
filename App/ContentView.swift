@@ -444,6 +444,27 @@ struct SettingsView: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var scout = MasterScout()
+
+    // The Master row shows the selection by directory name when the host is
+    // a known BrandMeister master, or the raw host otherwise.
+    private var serverLabel: String {
+        guard let selected = BMDirectory.master(forHost: settings.host) else {
+            return settings.host
+        }
+        return "\(selected.id) \(selected.country)"
+    }
+
+    private var serverProbe: ProbeState? {
+        BMDirectory.master(forHost: settings.host).flatMap { scout.results[$0.id] }
+    }
+
+    private func probeSelected() {
+        guard settings.netMode != "homebrew",
+              let selected = BMDirectory.master(forHost: settings.host) else { return }
+        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
+        scout.probeOne(selected, dmrID: dmrID)
+    }
 
     private var tgList: Binding<[Talkgroup]> {
         Binding(
@@ -467,38 +488,42 @@ struct SettingsView: View {
                         Text("Open Terminal (BM)").tag("openterminal")
                         Text("Homebrew (hotspot)").tag("homebrew")
                     }
-                    TextField("Host", text: settings.$host)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(CW.mono(14))
                     if settings.netMode == "homebrew" {
+                        TextField("Host", text: settings.$host)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(CW.mono(14))
                         TextField("Port", value: settings.$port, format: .number)
                             .keyboardType(.numberPad)
                             .font(CW.mono(14))
                     } else {
-                        TextField("Port", value: settings.$otpPort, format: .number)
-                            .keyboardType(.numberPad)
-                            .font(CW.mono(14))
-                    }
-                    NavigationLink {
-                        MasterPickerView()
-                    } label: {
-                        HStack {
-                            Text("Find a master")
-                            Spacer()
-                            Text(settings.autoMaster ? "Auto" : "Manual")
-                                .font(CW.mono(12))
-                                .foregroundStyle(CW.dim)
+                        NavigationLink {
+                            MasterPickerView()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(serverLabel)
+                                    .font(CW.mono(14))
+                                    .lineLimit(1)
+                                if settings.autoMaster {
+                                    Text("auto")
+                                        .font(CW.mono(11))
+                                        .foregroundStyle(CW.dim)
+                                }
+                                Spacer()
+                                LatencyBadge(state: serverProbe)
+                            }
                         }
                     }
                 } header: {
                     SectionLabel("Master")
                 } footer: {
-                    Text(settings.autoMaster
-                        ? "Connect pings every BrandMeister master and uses the fastest."
-                        : "Pings every BrandMeister master and lets you pick the closest.")
-                        .font(CW.mono(11))
-                        .foregroundStyle(CW.dim)
+                    if settings.netMode != "homebrew" {
+                        Text(settings.autoMaster
+                            ? "Connect pings every BrandMeister master and uses the fastest."
+                            : "Pings every BrandMeister master and lets you pick the closest.")
+                            .font(CW.mono(11))
+                            .foregroundStyle(CW.dim)
+                    }
                 }
                 Section {
                     TextField("DMR ID", text: settings.$dmrID)
@@ -580,6 +605,8 @@ struct SettingsView: View {
                 }
             }
             .cwList()
+            .onAppear { probeSelected() }
+            .onChange(of: settings.host) { _, _ in probeSelected() }
             .navigationTitle("Settings")
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
