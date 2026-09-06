@@ -541,6 +541,19 @@ struct SettingsView: View {
                         .font(CW.mono(11))
                         .foregroundStyle(CW.dim)
                 }
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Voice decoding by mbelib (ISC license).")
+                        Text("Voice encoding by the OP25 project's software AMBE+2 encoder, © Max H. Parke KA1RBI, GPL v3.")
+                        Text("Fonts: Outfit and IBM Plex Mono (SIL Open Font License).")
+                        Text("Full license texts ship in the source repository under Packages/AMBE.")
+                    }
+                    .font(CW.sans(13))
+                    .foregroundStyle(CW.text)
+                    .padding(.vertical, 2)
+                } header: {
+                    SectionLabel("Acknowledgements")
+                }
             }
             .cwList()
             .navigationTitle("Settings")

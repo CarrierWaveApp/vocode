@@ -1,0 +1,16 @@
+This directory vendors the software AMBE+2 encoder from the OP25 project
+(https://github.com/osmocom/op25), Copyright 2014-2017 Max H. Parke KA1RBI,
+licensed under the GNU General Public License v3 (see COPYING).
+
+Files: ambe_encoder.{h,cc}, ambe_dequant.cc (op25's ambe.c),
+ambe3600x2250_const.h, ambe3600x2400_const.h, op25_golay.h, and the
+imbe_vocoder/ directory (fixed-point IMBE vocoder, GPL, by Pavel Yazev
+and others, via OP25).
+
+Local modifications: the p25p2_vf interleaver dependency was replaced by
+dmr_pack.cc, which packs the encoder's 49-bit frames with Golay FEC and
+mbelib-compatible pseudo-random modulation directly into mbelib's
+ambe_fr[4][24] cell layout.
+
+The decoder in the parent directory is mbelib (ISC license, see
+../COPYRIGHT.mbelib).
