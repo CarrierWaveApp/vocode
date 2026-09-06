@@ -1,0 +1,38 @@
+name: DMRMonitor
+options:
+  bundleIdPrefix: com.carrierwave
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.0"
+packages:
+  AMBE:
+    path: Packages/AMBE
+targets:
+  DMRMonitor:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      - path: Resources/Fonts
+        buildPhase: resources
+    dependencies:
+      - package: AMBE
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIAppFonts:
+          - Outfit-Regular.ttf
+          - Outfit-Medium.ttf
+          - Outfit-SemiBold.ttf
+          - IBMPlexMono-Regular.ttf
+          - IBMPlexMono-Medium.ttf
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7UE4RDLUSX
