@@ -10,19 +10,13 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    if model.isConnected {
-                        compactStatusRow
-                        if connExpanded {
-                            statusRow
-                            logLink
-                        }
-                    } else {
+                if !model.isConnected || connExpanded || model.audioError != nil {
+                    Section {
                         statusRow
                         logLink
-                    }
-                    if let err = model.audioError {
-                        Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
+                        if let err = model.audioError {
+                            Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
+                        }
                     }
                 }
                 Section {
@@ -109,9 +103,13 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("DMR Monitor")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    headerStatus
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Clear") { model.clearHeard() }
                         .font(CW.sans(15))
@@ -182,20 +180,22 @@ struct ContentView: View {
         }
     }
 
-    // One-line summary while connected: green dot, master, chevron
-    private var compactStatusRow: some View {
+    // Lives in the nav bar as the principal item: dot, summary, chevron.
+    // Tapping toggles the connection section in the list.
+    private var headerStatus: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) { connExpanded.toggle() }
         } label: {
-            HStack(spacing: 10) {
-                Circle().fill(CW.green).frame(width: 8, height: 8)
-                Text(connectedSummary)
-                    .font(CW.mono(13))
-                    .foregroundStyle(CW.text)
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(model.isConnected ? CW.green : CW.xdim)
+                    .frame(width: 8, height: 8)
+                Text(model.isConnected ? connectedSummary : model.link.label)
+                    .font(CW.mono(13, medium: true))
+                    .foregroundStyle(model.isConnected ? CW.white : CW.text)
                     .lineLimit(1)
-                Spacer()
                 Image(systemName: connExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(CW.dim)
             }
         }
