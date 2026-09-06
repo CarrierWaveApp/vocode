@@ -4,26 +4,25 @@ struct ContentView: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
     @State private var showSettings = false
+    @State private var connExpanded = false
     @AppStorage("tgCollapsed") private var tgCollapsed = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    statusRow
-                    NavigationLink {
-                        LogView()
-                    } label: {
-                        HStack {
-                            Text("Connection log")
-                            Spacer()
-                            if let last = model.log.first {
-                                Text(last.line)
-                                    .font(CW.mono(11))
-                                    .foregroundStyle(last.isError ? CW.red : CW.dim)
-                                    .lineLimit(1)
-                            }
+                    if model.isConnected {
+                        compactStatusRow
+                        if connExpanded {
+                            statusRow
+                            logLink
                         }
+                    } else {
+                        statusRow
+                        logLink
+                    }
+                    if let err = model.audioError {
+                        Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
                     }
                 }
                 Section {
@@ -183,28 +182,67 @@ struct ContentView: View {
         }
     }
 
-    private var statusRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    // One-line summary while connected: green dot, master, chevron
+    private var compactStatusRow: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { connExpanded.toggle() }
+        } label: {
             HStack(spacing: 10) {
-                Circle()
-                    .fill(model.isConnected ? CW.green : CW.xdim)
-                    .frame(width: 8, height: 8)
-                Text(model.link.label)
-                    .font(CW.sans(15, .medium))
-                    .foregroundStyle(model.isConnected ? CW.white : CW.text)
+                Circle().fill(CW.green).frame(width: 8, height: 8)
+                Text(connectedSummary)
+                    .font(CW.mono(13))
+                    .foregroundStyle(CW.text)
+                    .lineLimit(1)
                 Spacer()
-                Button(model.isConnected ? "Disconnect" : "Connect") {
-                    if model.isConnected {
-                        model.disconnect()
-                    } else {
-                        model.connect(settings)
-                    }
+                Image(systemName: connExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CW.dim)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var connectedSummary: String {
+        if let server = BMDirectory.master(forHost: settings.host) {
+            return "\(server.id) \(server.country)"
+        }
+        return settings.host
+    }
+
+    private var logLink: some View {
+        NavigationLink {
+            LogView()
+        } label: {
+            HStack {
+                Text("Connection log")
+                Spacer()
+                if let last = model.log.first {
+                    Text(last.line)
+                        .font(CW.mono(11))
+                        .foregroundStyle(last.isError ? CW.red : CW.dim)
+                        .lineLimit(1)
                 }
-                .buttonStyle(PillButtonStyle(filled: !model.isConnected))
             }
-            if let err = model.audioError {
-                Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
+        }
+    }
+
+    private var statusRow: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(model.isConnected ? CW.green : CW.xdim)
+                .frame(width: 8, height: 8)
+            Text(model.link.label)
+                .font(CW.sans(15, .medium))
+                .foregroundStyle(model.isConnected ? CW.white : CW.text)
+            Spacer()
+            Button(model.isConnected ? "Disconnect" : "Connect") {
+                if model.isConnected {
+                    model.disconnect()
+                } else {
+                    model.connect(settings)
+                }
             }
+            .buttonStyle(PillButtonStyle(filled: !model.isConnected))
         }
         .padding(.vertical, 4)
     }
