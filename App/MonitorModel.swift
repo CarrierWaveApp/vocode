@@ -128,6 +128,7 @@ final class MonitorModel: ObservableObject {
 
     func connect(_ settings: Settings) {
         disconnect()
+        if settings.singleTG { settings.enforceSingleLive() }
         if settings.netMode == "homebrew" {
             connectHomebrew(settings)
         } else {

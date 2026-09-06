@@ -49,12 +49,19 @@ final class Settings: ObservableObject {
     @AppStorage("location") var location = ""
     @AppStorage("talkgroupsJSON") var talkgroupsJSON = ""
     @AppStorage("txTargetTG") var txTargetTG = 0
+    // Default: exactly one talkgroup subscribed at a time; going live on
+    // one switches the others off. Turn off for multi-talkgroup monitoring.
+    @AppStorage("singleTG") var singleTG = true
 
     init() {
-        // Migrate the old free-text options field once
+        // Migrate the old free-text options field once; in single-talkgroup
+        // mode only the first entry starts live
         if talkgroupsJSON.isEmpty {
             let names: [UInt32: String] = [91: "Worldwide", 3100: "USA Nationwide"]
-            talkgroupList = legacyTalkgroups.map { Talkgroup(tg: $0, name: names[$0] ?? "") }
+            talkgroupList = legacyTalkgroups.enumerated().map { i, tg in
+                Talkgroup(tg: tg, name: names[tg] ?? "",
+                          listen: (singleTG && i > 0) ? .off : .live)
+            }
         }
     }
 
@@ -86,7 +93,29 @@ final class Settings: ObservableObject {
         var list = talkgroupList
         guard let i = list.firstIndex(where: { $0.tg == tg }) else { return }
         list[i].listen = state
+        if singleTG, state == .live {
+            for j in list.indices where j != i && list[j].listen != .off {
+                list[j].listen = .off
+            }
+            txTargetTG = Int(tg)
+        }
         talkgroupList = list
+    }
+
+    // Collapse to one subscribed talkgroup: the TX target if it's live,
+    // else the first live one. No-op when nothing is live.
+    func enforceSingleLive() {
+        var list = talkgroupList
+        let keep = list.firstIndex { $0.tg == UInt32(txTargetTG) && $0.listen == .live }
+            ?? list.firstIndex { $0.listen == .live }
+        guard let keep else { return }
+        var changed = false
+        for i in list.indices where i != keep && list[i].listen != .off {
+            list[i].listen = .off
+            changed = true
+        }
+        if changed { talkgroupList = list }
+        txTargetTG = Int(list[keep].tg)
     }
 
     func cycleListen(_ tg: UInt32) {

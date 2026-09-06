@@ -442,6 +442,7 @@ struct Tag: View {
 
 struct SettingsView: View {
     @EnvironmentObject var settings: Settings
+    @EnvironmentObject var model: MonitorModel
     @Environment(\.dismiss) private var dismiss
 
     private var tgList: Binding<[Talkgroup]> {
@@ -522,6 +523,21 @@ struct SettingsView: View {
                     SectionLabel("Talkgroups")
                 } footer: {
                     Text("Applied on next connect. Swipe to delete.")
+                        .font(CW.mono(11))
+                        .foregroundStyle(CW.dim)
+                }
+                Section {
+                    Toggle("Single talkgroup", isOn: settings.$singleTG)
+                        .onChange(of: settings.singleTG) { _, on in
+                            if on {
+                                settings.enforceSingleLive()
+                                model.applyListenStates(settings)
+                            }
+                        }
+                } header: {
+                    SectionLabel("Behavior")
+                } footer: {
+                    Text("Going live on a talkgroup switches the others off. Turn off to monitor several at once.")
                         .font(CW.mono(11))
                         .foregroundStyle(CW.dim)
                 }
