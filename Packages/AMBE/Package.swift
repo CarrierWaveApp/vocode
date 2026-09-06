@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "AMBE",
-    platforms: [.iOS(.v17)],
+    platforms: [.iOS(.v17), .macOS(.v13)],
     products: [
         .library(name: "AMBE", targets: ["CMBELib"])
     ],
@@ -11,7 +11,17 @@ let package = Package(
         .target(
             name: "CMBELib",
             path: "Sources/CMBELib",
-            cSettings: [.headerSearchPath(".")]
-        )
-    ]
+            cSettings: [.headerSearchPath(".")],
+            cxxSettings: [
+                .headerSearchPath("."),
+                .headerSearchPath("encoder"),
+            ]
+        ),
+        .testTarget(
+            name: "AMBETests",
+            dependencies: ["CMBELib"],
+            path: "Tests/AMBETests"
+        ),
+    ],
+    cxxLanguageStandard: .cxx14
 )

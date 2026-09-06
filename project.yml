@@ -23,6 +23,7 @@ targets:
       path: App/Info.plist
       properties:
         UILaunchScreen: {}
+        NSMicrophoneUsageDescription: Voice transmit to your selected DMR talkgroup.
         UIAppFonts:
           - Outfit-Regular.ttf
           - Outfit-Medium.ttf

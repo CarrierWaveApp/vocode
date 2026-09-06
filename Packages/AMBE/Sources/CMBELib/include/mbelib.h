@@ -20,6 +20,10 @@
 
 #define MBELIB_VERSION "1.3.0"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct mbe_parameters
 {
   float w0;
@@ -109,5 +113,9 @@ void mbe_synthesizeSilence (short *aout_buf);
 void mbe_synthesizeSpeechf (float *aout_buf, mbe_parms * cur_mp, mbe_parms * prev_mp, int uvquality);
 void mbe_synthesizeSpeech (short *aout_buf, mbe_parms * cur_mp, mbe_parms * prev_mp, int uvquality);
 void mbe_floattoshort (float *float_buf, short *aout_buf);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

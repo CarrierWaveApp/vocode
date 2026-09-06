@@ -87,7 +87,9 @@ struct ContentView: View {
                     TalkBar(
                         target: settings.txTarget,
                         armed: settings.txTarget?.listen == .live,
-                        onTalk: { model.noteTxAttempt() }
+                        transmitting: model.transmitting,
+                        onPress: { model.beginTransmit(settings) },
+                        onRelease: { model.endTransmit() }
                     )
                 }
             }
@@ -263,13 +265,16 @@ struct TGRow: View {
 struct TalkBar: View {
     let target: Talkgroup?
     let armed: Bool
-    let onTalk: () -> Void
+    let transmitting: Bool
+    let onPress: () -> Void
+    let onRelease: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "mic.fill")
                 .font(.system(size: 15))
-                .foregroundStyle(armed ? CW.blue : CW.xdim)
+                .foregroundStyle(transmitting ? CW.red : (armed ? CW.blue : CW.xdim))
+                .symbolEffect(.pulse, isActive: transmitting)
             VStack(alignment: .leading, spacing: 2) {
                 Text(target.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name } ?? "No TX target")
                     .font(CW.sans(14, .semibold))
@@ -280,10 +285,22 @@ struct TalkBar: View {
                     .foregroundStyle(CW.dim)
             }
             Spacer()
-            Button("Hold to talk", action: onTalk)
-                .buttonStyle(PillButtonStyle(filled: armed))
-                .disabled(!armed)
-                .opacity(armed ? 1 : 0.45)
+            Text(transmitting ? "On air" : "Hold to talk")
+                .font(CW.sans(13, .medium))
+                .foregroundStyle(transmitting ? CW.white : (armed ? CW.bg : CW.text))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .background(transmitting ? CW.red : (armed ? CW.blue : CW.raised))
+                .overlay(Capsule().stroke(armed || transmitting ? .clear : CW.border, lineWidth: 1))
+                .clipShape(Capsule())
+                .opacity(armed || transmitting ? 1 : 0.45)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if armed, !transmitting { onPress() }
+                        }
+                        .onEnded { _ in onRelease() }
+                )
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 13)
@@ -296,6 +313,7 @@ struct TalkBar: View {
 
     private var subtitle: String {
         guard let target else { return "SELECT IN TALKGROUPS" }
+        if transmitting { return "TRANSMITTING · TG \(target.tg)" }
         return target.listen == .live
             ? "TX TARGET · TG \(target.tg)"
             : "TX DISARMED · TG \(target.tg)"

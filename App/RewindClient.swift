@@ -41,6 +41,7 @@ final class RewindClient {
     private var conn: NWConnection?
     private var timer: DispatchSourceTimer?
     private var seq: UInt32 = 0
+    private var rtSeq: UInt32 = 0
     private var lastAck = Date()
 
     // Call tracking: OTP has no stream IDs, new calls are detected by a gap
@@ -143,6 +144,55 @@ final class RewindClient {
             var payload = [UInt8](le32(7))      // 7 = group call
             payload.append(contentsOf: le32(tg))
             sendFrame(.subscription, payload)
+        }
+    }
+
+    // MARK: - Transmit
+
+    // FLC body as pyspot builds it: flags, feature set, service options,
+    // then 3-byte BE dst and src
+    private func flcPayload(dst: UInt32, src: UInt32) -> [UInt8] {
+        var p: [UInt8] = [0x00, 0x00, 0x04]
+        p.append(contentsOf: [UInt8((dst >> 16) & 0xFF), UInt8((dst >> 8) & 0xFF), UInt8(dst & 0xFF)])
+        p.append(contentsOf: [UInt8((src >> 16) & 0xFF), UInt8((src >> 8) & 0xFF), UInt8(src & 0xFF)])
+        p.append(contentsOf: [0x00, 0x00, 0x00])
+        return p
+    }
+
+    private func sendRT(_ type: MsgType, _ payload: [UInt8]) {
+        var d = Data(Self.sign)
+        d.append(le16(type.rawValue))
+        d.append(le16(1))               // REWIND_FLAG_REAL_TIME_1
+        d.append(le32(rtSeq))
+        rtSeq &+= 1
+        d.append(le16(UInt16(payload.count)))
+        d.append(contentsOf: payload)
+        conn?.send(content: d, completion: .contentProcessed { _ in })
+    }
+
+    func startTransmit(dst: UInt32) {
+        queue.async { [weak self] in
+            guard let self, self.state == .running else { return }
+            self.log("TX start → TG \(dst)")
+            self.sendRT(.headerWithFLC, self.flcPayload(dst: dst, src: self.config.dmrID))
+        }
+    }
+
+    // 27 bytes: three 9-byte on-air AMBE frames (60 ms of audio)
+    func sendTransmitAudio(_ bytes: [UInt8]) {
+        queue.async { [weak self] in
+            guard let self, self.state == .running, bytes.count == 27 else { return }
+            self.sendRT(.dmrAudioFrame, bytes)
+        }
+    }
+
+    func endTransmit(dst: UInt32) {
+        queue.async { [weak self] in
+            guard let self, self.state == .running else { return }
+            let flc = self.flcPayload(dst: dst, src: self.config.dmrID)
+            self.sendRT(.terminatorWithFLC, flc)
+            self.sendRT(.terminatorWithFLC, flc)
+            self.log("TX end")
         }
     }
 

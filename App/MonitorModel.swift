@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AVFoundation
 
 struct HeardEntry: Identifiable, Equatable {
     let id: UInt32          // streamID
@@ -98,6 +99,12 @@ final class MonitorModel: ObservableObject {
     private var otpSubscribed: Set<UInt32> = []
     @Published var audioError: String?
     @Published var log: [LogEntry] = []
+    @Published var transmitting = false
+
+    private var mic: MicCapture?
+    private var txBatcher: TxBatcher?
+    private var txDst: UInt32 = 0
+    private var txPending = false
 
     private var client: HomebrewClient?
     private var rewind: RewindClient?
@@ -192,6 +199,7 @@ final class MonitorModel: ObservableObject {
     }
 
     func disconnect() {
+        if transmitting { endTransmit() }
         if client != nil || rewind != nil { appendLog("disconnected") }
         client?.disconnect()
         client = nil
@@ -235,9 +243,54 @@ final class MonitorModel: ObservableObject {
         }
     }
 
-    // TX isn't implemented; keep the tap honest in the log
-    func noteTxAttempt() {
-        appendLog("transmit not implemented yet", error: true)
+    // MARK: - Transmit
+
+    func beginTransmit(_ settings: Settings) {
+        guard !transmitting, !txPending, rewind != nil, isConnected,
+              let target = settings.txTarget, target.listen == .live else { return }
+        txPending = true
+        Task { @MainActor in
+            defer { txPending = false }
+            let granted = await AVAudioApplication.requestRecordPermission()
+            guard granted else {
+                appendLog("microphone permission denied", error: true)
+                return
+            }
+            guard !transmitting, let rewind, isConnected else { return }
+            startTx(rewind: rewind, dst: target.tg)
+        }
+    }
+
+    private func startTx(rewind: RewindClient, dst: UInt32) {
+        guard let enc = AMBEEncoder() else {
+            appendLog("AMBE encoder init failed", error: true)
+            return
+        }
+        let batcher = TxBatcher(encoder: enc) { [weak rewind] payload in
+            rewind?.sendTransmitAudio(payload)
+        }
+        let m = MicCapture()
+        m.onFrame = { pcm in batcher.submit(pcm) }
+        do {
+            try m.start()
+        } catch {
+            appendLog("microphone failed to start", error: true)
+            return
+        }
+        mic = m
+        txBatcher = batcher
+        txDst = dst
+        rewind.startTransmit(dst: dst)
+        transmitting = true
+    }
+
+    func endTransmit() {
+        guard transmitting else { return }
+        mic?.stop()
+        mic = nil
+        txBatcher = nil
+        rewind?.endTransmit(dst: txDst)
+        transmitting = false
     }
 
     func clearHeard() { heard.removeAll() }

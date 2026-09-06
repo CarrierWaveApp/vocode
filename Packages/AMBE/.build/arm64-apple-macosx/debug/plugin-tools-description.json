@@ -1,0 +1,741 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.xctest/Contents/MacOS/AMBEPackageTests",
+      "packagePath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE",
+      "productName" : "AMBEPackageTests"
+    }
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.AMBEPackageTests-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/sources",
+      "importPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules/AMBETests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AMBEPackageTests",
+      "moduleOutputPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules/AMBEPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx13.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-Xcc",
+        "-fmodule-map-file=/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/module.modulemap",
+        "-Xcc",
+        "-I",
+        "-Xcc",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Sources/CMBELib/include",
+        "-module-cache-path",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/include/AMBEPackageTests-Swift.h",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "ambe"
+      ],
+      "outputFileMapPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules/AMBEPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.AMBETests-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/sources",
+      "importPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Tests/AMBETests/RoundtripTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ambe3600x2400.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ambe3600x2450.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ambe_shim.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ecc.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/ambe_dequant.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/ambe_encode_shim.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/ambe_encoder.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/dmr_pack.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/aux_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/basicop2.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/ch_decode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/ch_encode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/dc_rmv.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/decode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/dsp_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/encode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/imbe_vocoder.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/math_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/pe_lpf.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/pitch_est.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/pitch_ref.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/qnt_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/rand_gen.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/sa_decode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/sa_encode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/sa_enh.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/tbls.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/uv_synt.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/v_synt.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/v_uv_det.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/imbe7100x4400.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/imbe7200x4400.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/mbelib.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AMBETests",
+      "moduleOutputPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules/AMBETests.swiftmodule",
+      "objects" : [
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/RoundtripTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-Xcc",
+        "-fmodule-map-file=/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/module.modulemap",
+        "-Xcc",
+        "-I",
+        "-Xcc",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Sources/CMBELib/include",
+        "-module-cache-path",
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "ambe"
+      ],
+      "outputFileMapPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/RoundtripTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules/AMBETests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Tests/AMBETests/RoundtripTests.swift"
+      ],
+      "tempsPath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "AMBEPackageTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "AMBEPackageTests",
+      "-package-name",
+      "ambe",
+      "-c",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx13.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-Xcc",
+      "-fmodule-map-file=/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/module.modulemap",
+      "-Xcc",
+      "-I",
+      "-Xcc",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Sources/CMBELib/include",
+      "-module-cache-path",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/include/AMBEPackageTests-Swift.h",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "ambe",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "AMBETests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "AMBETests",
+      "-package-name",
+      "ambe",
+      "-c",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Tests/AMBETests/RoundtripTests.swift",
+      "-I",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-Xcc",
+      "-fmodule-map-file=/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/module.modulemap",
+      "-Xcc",
+      "-I",
+      "-Xcc",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Sources/CMBELib/include",
+      "-module-cache-path",
+      "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "ambe",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "AMBEPackageTests" : [
+      "AMBETests",
+      "CMBELib"
+    ],
+    "AMBETests" : [
+      "CMBELib"
+    ],
+    "CMBELib" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/sources"
+    },
+    "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/RoundtripTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ambe3600x2400.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ambe3600x2450.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ambe_shim.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/ecc.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/ambe_dequant.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/ambe_encode_shim.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/ambe_encoder.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/dmr_pack.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/aux_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/basicop2.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/ch_decode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/ch_encode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/dc_rmv.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/decode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/dsp_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/encode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/imbe_vocoder.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/math_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/pe_lpf.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/pitch_est.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/pitch_ref.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/qnt_sub.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/rand_gen.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/sa_decode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/sa_encode.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/sa_enh.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/tbls.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/uv_synt.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/v_synt.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/encoder/imbe_vocoder/v_uv_det.cc.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/imbe7100x4400.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/imbe7200x4400.c.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/CMBELib.build/mbelib.c.o"
+        }
+      ],
+      "outputFilePath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBEPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Tests/AMBETests/RoundtripTests.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/AMBETests.build/sources"
+    },
+    "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}

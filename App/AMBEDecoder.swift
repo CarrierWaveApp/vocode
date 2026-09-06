@@ -40,7 +40,7 @@ final class AudioOutput {
 
     func start() throws {
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playback, mode: .spokenAudio)
+        try session.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker])
         try session.setActive(true)
         try engine.start()
         player.play()

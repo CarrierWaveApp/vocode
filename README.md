@@ -12,7 +12,13 @@ mbelib, plays it, and keeps a last-heard list. Two network modes:
   BrandMeister NAKs app-only clients here (that's why Open Terminal
   exists); still useful for networks that allow it, e.g. TGIF.
 
-No transmit. No App Store distribution intended.
+Transmit works in Open Terminal mode: hold the talk button to key up the
+selected TX talkgroup. Voice is encoded with OP25's software AMBE+2
+encoder (GPL v3, vendored under `Packages/AMBE/Sources/CMBELib/encoder/`
+with a custom `dmr_pack.cc` that emits mbelib's cell layout — the package
+test proves encode→decode symmetry). No transmit on homebrew mode.
+
+No App Store distribution intended.
 
 ## Layout
 

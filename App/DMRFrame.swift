@@ -124,6 +124,19 @@ struct VoiceBurst {
         return f
     }
 
+    // Inverse of ambeFrame: mbelib cell layout → 9-byte on-air AMBE frame
+    static func packFrame(_ cells: [CChar]) -> [UInt8]? {
+        guard cells.count == 96 else { return nil }
+        var b = [UInt8](repeating: 0, count: 9)
+        for i in 0..<36 {
+            let hi = UInt8(bitPattern: Int8(cells[rW[i] * 24 + rX[i]])) & 1
+            let lo = UInt8(bitPattern: Int8(cells[rY[i] * 24 + rZ[i]])) & 1
+            if hi == 1 { b[(2 * i) >> 3] |= 1 << (7 - UInt8((2 * i) & 7)) }
+            if lo == 1 { b[(2 * i + 1) >> 3] |= 1 << (7 - UInt8((2 * i + 1) & 7)) }
+        }
+        return b
+    }
+
     // Each frame is [4][24] flattened
     func ambeFrames() -> [[CChar]] {
         var f1 = [CChar](repeating: 0, count: 96)

@@ -1,0 +1,4 @@
+module CMBELib {
+    umbrella "/Users/jsvana/projects/DMRMonitor/Packages/AMBE/Sources/CMBELib/include"
+    export *
+}
