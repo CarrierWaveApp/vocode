@@ -22,6 +22,14 @@ struct LogEntry: Identifiable {
     let isError: Bool
 }
 
+// One of our own transmissions, for the activity timeline
+struct TXBurst: Identifiable, Equatable {
+    let id = UUID()
+    let dst: UInt32
+    let started: Date
+    var ended: Date?
+}
+
 // Decode path, runs off the main thread
 final class DecodePipeline {
     private let decoder = AMBEDecoder()
@@ -100,6 +108,7 @@ final class MonitorModel: ObservableObject {
     @Published var audioError: String?
     @Published var log: [LogEntry] = []
     @Published var transmitting = false
+    @Published var txBursts: [TXBurst] = []
 
     private var mic: MicCapture?
     private var txBatcher: TxBatcher?
@@ -313,6 +322,8 @@ final class MonitorModel: ObservableObject {
         txDst = dst
         rewind.startTransmit(dst: dst)
         transmitting = true
+        txBursts.insert(TXBurst(dst: dst, started: Date()), at: 0)
+        if txBursts.count > 50 { txBursts.removeLast() }
     }
 
     func endTransmit() {
@@ -322,6 +333,9 @@ final class MonitorModel: ObservableObject {
         txBatcher = nil
         rewind?.endTransmit(dst: txDst)
         transmitting = false
+        if let index = txBursts.firstIndex(where: { $0.ended == nil }) {
+            txBursts[index].ended = Date()
+        }
     }
 
     func clearHeard() { heard.removeAll() }
@@ -355,20 +369,8 @@ final class MonitorModel: ObservableObject {
             heard[i].ended = Date()
         }
     }
-}
 
-// radioid.net lookup with cache
-actor CallsignLookup {
-    private var cache: [UInt32: String] = [:]
-
-    func callsign(for id: UInt32) async -> String? {
-        if let hit = cache[id] { return hit }
-        guard let url = URL(string: "https://radioid.net/api/dmr/user/?id=\(id)") else { return nil }
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let results = json["results"] as? [[String: Any]],
-              let call = results.first?["callsign"] as? String else { return nil }
-        cache[id] = call
-        return call
+    func stationInfo(_ src: UInt32) async -> CallsignInfo? {
+        await lookup.info(for: src)
     }
 }

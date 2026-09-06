@@ -55,6 +55,22 @@ struct ContentView: View {
                     }
                 }
                 Section {
+                    TalkTimelineView()
+                } header: {
+                    HStack {
+                        SectionLabel("Activity")
+                        Spacer()
+                        if model.isConnected {
+                            HStack(spacing: 4) {
+                                Circle().fill(CW.green).frame(width: 6, height: 6)
+                                Text("LIVE")
+                                    .font(CW.mono(10, medium: true))
+                                    .foregroundStyle(CW.green)
+                            }
+                        }
+                    }
+                }
+                Section {
                     if model.heard.isEmpty {
                         Text("Nothing heard yet")
                             .foregroundStyle(CW.dim)
