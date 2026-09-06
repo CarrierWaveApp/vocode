@@ -31,7 +31,11 @@ struct ContentView: View {
                             .foregroundStyle(CW.dim)
                     }
                     ForEach(model.heard) { entry in
-                        HeardRow(entry: entry, muted: model.muted.contains(entry.dst))
+                        HeardRow(
+                            entry: entry,
+                            muted: model.muted.contains(entry.dst),
+                            tgName: settings.tgName(entry.dst)
+                        )
                             .swipeActions {
                                 Button(model.muted.contains(entry.dst) ? "Unmute TG" : "Mute TG") {
                                     model.toggleMute(entry.dst)
@@ -90,8 +94,12 @@ struct ContentView: View {
             if let err = model.audioError {
                 Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
             }
-            if !settings.options.isEmpty {
-                Text(settings.options)
+            let tgSummary = settings.talkgroupList
+                .filter { $0.tg > 0 }
+                .map { $0.name.isEmpty ? "\($0.tg)" : "\($0.tg) \($0.name)" }
+                .joined(separator: " · ")
+            if !tgSummary.isEmpty {
+                Text(tgSummary)
                     .font(CW.mono(11))
                     .foregroundStyle(CW.dim)
             }
@@ -138,6 +146,7 @@ struct LogView: View {
 struct HeardRow: View {
     let entry: HeardEntry
     let muted: Bool
+    var tgName: String?
 
     var body: some View {
         HStack(alignment: .top) {
@@ -154,7 +163,7 @@ struct HeardRow: View {
                             .font(CW.mono(11))
                             .foregroundStyle(CW.dim)
                     }
-                    Tag("TG \(entry.dst)", color: muted ? CW.amber : CW.blue)
+                    Tag(tgName ?? "TG \(entry.dst)", color: muted ? CW.amber : CW.blue)
                     if entry.slot > 0 {
                         Tag("TS\(entry.slot)", color: CW.dim)
                     }
@@ -223,6 +232,13 @@ struct SettingsView: View {
     @EnvironmentObject var settings: Settings
     @Environment(\.dismiss) private var dismiss
 
+    private var tgList: Binding<[Talkgroup]> {
+        Binding(
+            get: { settings.talkgroupList },
+            set: { settings.talkgroupList = $0 }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -271,16 +287,29 @@ struct SettingsView: View {
                     SectionLabel("Data")
                 }
                 Section {
-                    TextField("Options", text: settings.$options)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(CW.mono(14))
+                    ForEach(tgList) { $tg in
+                        HStack(spacing: 12) {
+                            TextField("TG", text: Binding(
+                                get: { tg.tg == 0 ? "" : String(tg.tg) },
+                                set: { tg.tg = UInt32($0.filter(\.isNumber)) ?? 0 }
+                            ))
+                            .keyboardType(.numberPad)
+                            .font(CW.mono(14))
+                            .frame(width: 76)
+                            TextField("Name", text: $tg.name)
+                        }
+                    }
+                    .onDelete { tgList.wrappedValue.remove(atOffsets: $0) }
+                    Button {
+                        tgList.wrappedValue.append(Talkgroup(tg: 0, name: ""))
+                    } label: {
+                        Label("Add talkgroup", systemImage: "plus")
+                            .font(CW.sans(15))
+                    }
                 } header: {
-                    SectionLabel("Static talkgroups")
+                    SectionLabel("Talkgroups")
                 } footer: {
-                    Text(settings.netMode == "homebrew"
-                        ? "Format: TS2_1=91;TS2_2=3100"
-                        : "Format: 91;3100")
+                    Text("Applied on next connect. Swipe to delete.")
                         .font(CW.mono(11))
                         .foregroundStyle(CW.dim)
                 }
