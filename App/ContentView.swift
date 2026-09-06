@@ -480,11 +480,23 @@ struct SettingsView: View {
                             .keyboardType(.numberPad)
                             .font(CW.mono(14))
                     }
-                    NavigationLink("Find a master") { MasterPickerView() }
+                    NavigationLink {
+                        MasterPickerView()
+                    } label: {
+                        HStack {
+                            Text("Find a master")
+                            Spacer()
+                            Text(settings.autoMaster ? "Auto" : "Manual")
+                                .font(CW.mono(12))
+                                .foregroundStyle(CW.dim)
+                        }
+                    }
                 } header: {
                     SectionLabel("Master")
                 } footer: {
-                    Text("Pings every BrandMeister master and lets you pick the closest.")
+                    Text(settings.autoMaster
+                        ? "Connect pings every BrandMeister master and uses the fastest."
+                        : "Pings every BrandMeister master and lets you pick the closest.")
                         .font(CW.mono(11))
                         .foregroundStyle(CW.dim)
                 }

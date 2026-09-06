@@ -48,6 +48,10 @@ final class Settings: ObservableObject {
     @AppStorage("options") var options = "TS2_1=91;TS2_2=3100"
     @AppStorage("location") var location = ""
     @AppStorage("talkgroupsJSON") var talkgroupsJSON = ""
+    // Open Terminal only: probe all masters at connect and use the fastest.
+    // "Master" is BrandMeister's own term for its servers.
+    // swiftlint:disable:next inclusive_language
+    @AppStorage("autoMaster") var autoMaster = true
     @AppStorage("txTargetTG") var txTargetTG = 0
     // Default: exactly one talkgroup subscribed at a time; going live on
     // one switches the others off. Turn off for multi-talkgroup monitoring.

@@ -12,6 +12,13 @@ struct MasterPickerView: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Automatic", isOn: settings.$autoMaster)
+            } footer: {
+                Text("Connect probes every master and uses the fastest. Picking one below switches to manual.")
+                    .font(CW.mono(11))
+                    .foregroundStyle(CW.dim)
+            }
             if let fastestID = scout.fastest,
                let fastest = BMDirectory.all.first(where: { $0.id == fastestID }) {
                 Section {
@@ -36,7 +43,12 @@ struct MasterPickerView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
             let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
-            scout.probeAll(dmrID: dmrID)
+            scout.probeAll(dmrID: dmrID) { fastest in
+                // Mirror what connect will do so the checkmark shows it
+                if settings.autoMaster, let (master, _) = fastest {
+                    settings.host = master.host
+                }
+            }
         }
         .onDisappear { scout.cancelAll() }
     }
@@ -44,6 +56,7 @@ struct MasterPickerView: View {
     private func row(_ master: BMMaster) -> some View {
         Button {
             settings.host = master.host
+            settings.autoMaster = false
             dismiss()
         } label: {
             HStack(spacing: 10) {

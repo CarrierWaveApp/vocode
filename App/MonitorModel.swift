@@ -108,6 +108,7 @@ final class MonitorModel: ObservableObject {
 
     private var client: HomebrewClient?
     private var rewind: RewindClient?
+    private var scout: MasterScout?
     private let pipeline = DecodePipeline()
     private let lookup = CallsignLookup()
     private let notes: CallNotesStore
@@ -131,10 +132,36 @@ final class MonitorModel: ObservableObject {
         if settings.singleTG { settings.enforceSingleLive() }
         if settings.netMode == "homebrew" {
             connectHomebrew(settings)
+        } else if settings.autoMaster {
+            findMasterThenConnect(settings)
         } else {
             connectRewind(settings)
         }
         Task { await notes.refreshStale() }
+    }
+
+    // Probe every BrandMeister master, point the host at the fastest one,
+    // then connect. Falls back to the configured host if nothing answers.
+    // ("Master" is BrandMeister's own term for its servers.)
+    // swiftlint:disable:next inclusive_language
+    private func findMasterThenConnect(_ settings: Settings) {
+        link = .connecting
+        appendLog("probing masters for lowest latency")
+        let scout = MasterScout()
+        self.scout = scout
+        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
+        scout.probeAll(dmrID: dmrID) { [weak self] fastest in
+            guard let self, self.scout === scout else { return }
+            self.scout = nil
+            // swiftlint:disable:next inclusive_language
+            if let (master, millis) = fastest {
+                settings.host = master.host
+                self.appendLog("nearest master: \(master.id) \(master.country), \(millis) ms")
+            } else {
+                self.appendLog("no master reachable, trying \(settings.host)", error: true)
+            }
+            self.connectRewind(settings)
+        }
     }
 
     private func startAudio() {
@@ -202,6 +229,8 @@ final class MonitorModel: ObservableObject {
     func disconnect() {
         if transmitting { endTransmit() }
         if client != nil || rewind != nil { appendLog("disconnected") }
+        scout?.cancelAll()
+        scout = nil
         client?.disconnect()
         client = nil
         rewind?.disconnect()

@@ -95,6 +95,11 @@ final class MasterScout: ObservableObject {
 
     private let queue = DispatchQueue(label: "master.scout")
     private var connections: [UInt16: NWConnection] = [:]
+    // Settle tracking for the completion callback. A generation counter
+    // guards against probes from a superseded run reporting into a new one.
+    private var pending = 0
+    private var generation = 0
+    private var completion: ((BMMaster, Int)?) -> Void = { _ in }
 
     private static let openTerminalPort: UInt16 = 54006
     private static let sign = Array("REWIND01".utf8)
@@ -110,8 +115,12 @@ final class MasterScout: ObservableObject {
             .0
     }
 
-    func probeAll(dmrID: UInt32) {
+    /// Probes every master; `completion` fires on the main queue once all
+    /// probes settle, with the fastest reachable master or nil.
+    func probeAll(dmrID: UInt32, completion: @escaping ((BMMaster, Int)?) -> Void = { _ in }) {
         cancelAll()
+        self.completion = completion
+        pending = BMDirectory.all.count
         for master in BMDirectory.all {
             results[master.id] = .probing
             probe(master, dmrID: dmrID)
@@ -119,16 +128,38 @@ final class MasterScout: ObservableObject {
     }
 
     func cancelAll() {
+        completion = { _ in }
+        pending = 0
+        generation += 1
         for connection in connections.values {
             connection.cancel()
         }
         connections = [:]
     }
 
+    // Runs on main. Records one probe's outcome and fires the completion
+    // when this generation's last probe lands.
+    private func settle(_ masterID: UInt16, _ state: ProbeState, _ probeGeneration: Int) {
+        guard probeGeneration == generation else { return }
+        results[masterID] = state
+        pending -= 1
+        guard pending == 0 else { return }
+        let done = completion
+        completion = { _ in }
+        if let fastestID = fastest,
+           case .reachable(let millis)? = results[fastestID],
+           let master = BMDirectory.all.first(where: { $0.id == fastestID }) {
+            done((master, millis))
+        } else {
+            done(nil)
+        }
+    }
+
     private func probe(_ master: BMMaster, dmrID: UInt32) {
         guard let port = NWEndpoint.Port(rawValue: Self.openTerminalPort) else { return }
         let connection = NWConnection(host: NWEndpoint.Host(master.host), port: port, using: .udp)
         connections[master.id] = connection
+        let probeGeneration = generation
 
         // Everything below runs on `queue`, so these are single-threaded.
         var sentAt: Date?
@@ -138,7 +169,7 @@ final class MasterScout: ObservableObject {
             guard !done else { return }
             done = true
             connection.cancel()
-            DispatchQueue.main.async { self.results[master.id] = state }
+            DispatchQueue.main.async { self.settle(master.id, state, probeGeneration) }
         }
 
         connection.stateUpdateHandler = { state in
