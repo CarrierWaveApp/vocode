@@ -6,6 +6,7 @@ import SwiftUI
 struct ReflectorPickerView: View {
     @EnvironmentObject var settings: Settings
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var pinger = ICMPPinger()
     @State private var search = ""
     @State private var customHost = ""
 
@@ -73,7 +74,9 @@ struct ReflectorPickerView: View {
             if XLXDirectory.reflector(forHost: settings.dstarHost) == nil {
                 customHost = settings.dstarHost
             }
+            pinger.ping(XLXDirectory.all.map(\.ipAddress))
         }
+        .onDisappear { pinger.cancel() }
     }
 
     private func row(_ reflector: XLXReflector) -> some View {
@@ -91,11 +94,12 @@ struct ReflectorPickerView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if settings.dstarHost == reflector.host {
-                    Spacer()
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(CW.green)
                 }
+                Spacer()
+                LatencyBadge(state: pinger.results[reflector.ipAddress])
             }
         }
     }

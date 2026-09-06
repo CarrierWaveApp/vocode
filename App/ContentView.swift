@@ -506,6 +506,7 @@ struct SettingsView: View {
     @EnvironmentObject var model: MonitorModel
     @Environment(\.dismiss) private var dismiss
     @StateObject private var scout = MasterScout()
+    @StateObject private var pinger = ICMPPinger()
 
     // The Master row shows the selection by directory name when the host is
     // a known BrandMeister master, or the raw host otherwise.
@@ -532,7 +533,20 @@ struct SettingsView: View {
         return host
     }
 
+    // Directory reflectors carry a baked IP; a custom host only gets a
+    // badge when it's already a literal IPv4 address (no DNS here)
+    private var selectedReflectorIP: String? {
+        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
+        if let reflector = XLXDirectory.reflector(forHost: host) { return reflector.ipAddress }
+        var probe = in_addr()
+        return inet_pton(AF_INET, host, &probe) == 1 ? host : nil
+    }
+
     private func probeSelected() {
+        if settings.netMode == "dstar" {
+            if let address = selectedReflectorIP { pinger.ping([address]) }
+            return
+        }
         guard settings.netMode == "openterminal" else { return }
         let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
         if let selected = BMDirectory.master(forHost: settings.host) {
@@ -583,6 +597,10 @@ struct SettingsView: View {
                                     .font(CW.mono(14))
                                     .lineLimit(1)
                                     .truncationMode(.middle)
+                                Spacer()
+                                if let address = selectedReflectorIP {
+                                    LatencyBadge(state: pinger.results[address])
+                                }
                             }
                         }
                         TextField("Module", text: settings.$dstarModule)
@@ -713,6 +731,8 @@ struct SettingsView: View {
             .onAppear { probeSelected() }
             .onChange(of: settings.host) { _, _ in probeSelected() }
             .onChange(of: settings.otpPort) { _, _ in probeSelected() }
+            .onChange(of: settings.dstarHost) { _, _ in probeSelected() }
+            .onChange(of: settings.netMode) { _, _ in probeSelected() }
             .navigationTitle("Settings")
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
