@@ -205,7 +205,9 @@ struct ContentView: View {
     private var connectedSummary: String {
         if settings.netMode == "dstar" {
             let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-            let name = host.split(separator: ".").first.map(String.init)?.uppercased() ?? host
+            let name = XLXDirectory.reflector(forHost: host)?.name
+                ?? host.split(separator: ".").first.map(String.init)?.uppercased()
+                ?? host
             return "\(name) \(settings.dstarModule.uppercased())"
         }
         if let server = BMDirectory.master(forHost: settings.host) {
@@ -521,6 +523,15 @@ struct SettingsView: View {
         return scout.results[MasterScout.customKey]
     }
 
+    private var reflectorLabel: String {
+        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty else { return "Choose a reflector" }
+        if let reflector = XLXDirectory.reflector(forHost: host) {
+            return "\(reflector.name) · \(reflector.country)"
+        }
+        return host
+    }
+
     private func probeSelected() {
         guard settings.netMode == "openterminal" else { return }
         let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
@@ -564,10 +575,16 @@ struct SettingsView: View {
                             .keyboardType(.numberPad)
                             .font(CW.mono(14))
                     } else if settings.netMode == "dstar" {
-                        TextField("Reflector host", text: settings.$dstarHost)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .font(CW.mono(14))
+                        NavigationLink {
+                            ReflectorPickerView()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(reflectorLabel)
+                                    .font(CW.mono(14))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                        }
                         TextField("Module", text: settings.$dstarModule)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
