@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 // One watched station. The app owns the list; the server holds a replica
 // replaced wholesale on every sync.
@@ -41,7 +42,8 @@ final class BuddyClient: ObservableObject {
     @Published var status: BuddyStatus = .idle
 
     // Wire the APNs token callback and kick a registration if enabled.
-    // Idempotent; called from the root view's task.
+    // Idempotent; called from the root view's task. Every bail-out sets a
+    // visible status — a silent "idle" cost a debugging round once.
     func startup(_ settings: Settings) {
         PushManager.shared.onToken = { [weak self] token in
             Task { await self?.registerAndSync(settings, apnsToken: token) }
@@ -50,7 +52,25 @@ final class BuddyClient: ObservableObject {
         if settings.buddyDeviceID.isEmpty {
             settings.buddyDeviceID = UUID().uuidString
         }
-        PushManager.shared.enable()
+        guard settings.buddyConfigured else {
+            status = .failed("enter server URL + API token")
+            return
+        }
+        Task {
+            let auth = await UNUserNotificationCenter.current()
+                .notificationSettings().authorizationStatus
+            if auth == .denied {
+                status = .failed("notifications denied — enable in iOS Settings")
+                return
+            }
+            status = .syncing
+            PushManager.shared.enable()
+            // If iOS never vends a token, say so instead of spinning
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            if case .syncing = status, settings.buddyLastToken.isEmpty {
+                status = .failed("no push token from iOS")
+            }
+        }
     }
 
     func registerAndSync(_ settings: Settings, apnsToken: String) async {
