@@ -17,23 +17,28 @@ final class PushManager {
 
     private init() {}
 
-    // Request permission only when undetermined; bail on denied; otherwise
-    // (re-)register — idempotent, Apple-recommended per launch.
+    // Permission only, no APNs registration — nets reminders are local
+    // notifications and must not force remote-push setup
+    func requestAuthorization() async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            return (try? await center.requestAuthorization(
+                options: [.alert, .sound, .badge]
+            )) ?? false
+        case .denied:
+            return false
+        default:
+            return true
+        }
+    }
+
+    // Buddy watch: permission plus remote registration — idempotent,
+    // Apple-recommended per launch.
     func enable() {
         Task {
-            let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                let granted = (try? await center.requestAuthorization(
-                    options: [.alert, .sound, .badge]
-                )) ?? false
-                guard granted else { return }
-            case .denied:
-                return
-            default:
-                break
-            }
+            guard await requestAuthorization() else { return }
             UIApplication.shared.registerForRemoteNotifications()
         }
     }
@@ -50,8 +55,39 @@ final class PushDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCen
         _: UIApplication,
         didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        // Join needs the in-app UDP link, so the action foregrounds the app
+        let join = UNNotificationAction(
+            identifier: NetScheduler.joinAction, title: "Join",
+            options: [.foreground]
+        )
+        center.setNotificationCategories([
+            UNNotificationCategory(
+                identifier: NetScheduler.joinCategory, actions: [join],
+                intentIdentifiers: [], options: []
+            )
+        ])
         return true
+    }
+
+    // A tapped net reminder (banner or Join action) parks a join intent.
+    // UserDefaults covers cold launch (this can run before any SwiftUI
+    // task); the post covers an already-foregrounded app.
+    func userNotificationCenter(
+        _: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let info = response.notification.request.content.userInfo
+        guard info["kind"] as? String == "net",
+              let talkgroup = info["tg"] as? Int, talkgroup > 0,
+              response.actionIdentifier == NetScheduler.joinAction
+                || response.actionIdentifier == UNNotificationDefaultActionIdentifier
+        else { return }
+        let defaults = UserDefaults.standard
+        defaults.set(talkgroup, forKey: NetScheduler.pendingTGKey)
+        defaults.set(info["name"] as? String ?? "", forKey: NetScheduler.pendingNameKey)
+        NotificationCenter.default.post(name: NetScheduler.joinRequested, object: nil)
     }
 
     func application(

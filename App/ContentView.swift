@@ -49,6 +49,7 @@ struct ContentView: View {
                             .foregroundStyle(CW.dim)
                     }
                 }
+                NetsSection()
                 Section {
                     TalkTimelineView()
                 } header: {
@@ -672,6 +673,7 @@ struct SettingsView: View {
                 }
                 Section {
                     NavigationLink("Callsign notes") { CallNotesView() }
+                    NavigationLink("Nets") { NetsView() }
                 } header: {
                     SectionLabel("Data")
                 }

@@ -19,6 +19,7 @@ struct DMRMonitorApp: App {
                 .environmentObject(model)
                 .environmentObject(settings)
                 .environmentObject(notes)
+                .modifier(NetJoinRelay())
         }
     }
 }

@@ -73,6 +73,7 @@ final class Settings: ObservableObject {
     @AppStorage("buddyLastToken") var buddyLastToken = ""
     @AppStorage("buddyLastSynced") var buddyLastSynced = ""
     @AppStorage("buddiesJSON") var buddiesJSON = ""
+    @AppStorage("netsJSON") var netsJSON = ""
 
     init() {
         // Migrate the old free-text options field once; in single-talkgroup
@@ -164,6 +165,20 @@ final class Settings: ObservableObject {
             guard let data = try? JSONEncoder().encode(newValue),
                   let json = String(bytes: data, encoding: .utf8) else { return }
             buddiesJSON = json
+        }
+    }
+
+    var netList: [Net] {
+        get {
+            guard let data = netsJSON.data(using: .utf8),
+                  let list = try? JSONDecoder().decode([Net].self, from: data)
+            else { return [] }
+            return list
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let json = String(bytes: data, encoding: .utf8) else { return }
+            netsJSON = json
         }
     }
 
