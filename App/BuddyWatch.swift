@@ -94,10 +94,20 @@ final class BuddyClient: ObservableObject {
         settings.buddyLastSynced = hash
     }
 
-    // Re-sync if the list changed since the last successful PUT
+    // Re-sync if the list changed since the last successful PUT. A device
+    // that never registered (no token POSTed yet) needs the full startup
+    // path first — a bare watch PUT for an unknown device can't succeed.
     func syncIfNeeded(_ settings: Settings) {
         guard settings.buddyWatchEnabled, settings.buddyConfigured,
               !settings.buddyDeviceID.isEmpty else { return }
+        if settings.buddyLastToken.isEmpty {
+            if let token = PushManager.shared.deviceToken {
+                Task { await registerAndSync(settings, apnsToken: token) }
+            } else {
+                startup(settings)
+            }
+            return
+        }
         Task {
             status = .syncing
             do {

@@ -24,7 +24,15 @@ struct BuddySettingsSection: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .font(CW.mono(14))
+                    .onChange(of: settings.buddyServerURL) {
+                        buddyClient.startup(settings)
+                    }
+                // Credentials entered after the toggle must still register:
+                // the token-arrival path bails while they're missing
                 SecureField("API token", text: settings.$buddyAPIToken)
+                    .onChange(of: settings.buddyAPIToken) {
+                        buddyClient.startup(settings)
+                    }
             }
         } header: {
             SectionLabel("Buddy watch")
