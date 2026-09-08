@@ -21,13 +21,12 @@ targets:
       - path: Resources/Assets.xcassets
     dependencies:
       - package: AMBE
-    # TODO(buddy-watch): re-enable once provisioning can mint a push-capable
-    # profile (Xcode has no signed-in account on this Mac). development =
-    # APNs sandbox, matching dev-signed builds; server needs production=false.
-    # entitlements:
-    #   path: App/DMRMonitor.entitlements
-    #   properties:
-    #     aps-environment: development
+    # development = APNs sandbox, matching the dev-signed builds xc deploy
+    # produces; the server must run with production = false
+    entitlements:
+      path: App/DMRMonitor.entitlements
+      properties:
+        aps-environment: development
     info:
       path: App/Info.plist
       properties:
