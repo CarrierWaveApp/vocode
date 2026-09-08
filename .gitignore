@@ -1,3 +1,4 @@
 .DS_Store
 DMRMonitor.xcodeproj/
 build/
+App/DMRMonitor.entitlements

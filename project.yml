@@ -15,11 +15,19 @@ targets:
       - path: App
         excludes:
           - Info.plist
+          - DMRMonitor.entitlements
       - path: Resources/Fonts
         buildPhase: resources
       - path: Resources/Assets.xcassets
     dependencies:
       - package: AMBE
+    # TODO(buddy-watch): re-enable once provisioning can mint a push-capable
+    # profile (Xcode has no signed-in account on this Mac). development =
+    # APNs sandbox, matching dev-signed builds; server needs production=false.
+    # entitlements:
+    #   path: App/DMRMonitor.entitlements
+    #   properties:
+    #     aps-environment: development
     info:
       path: App/Info.plist
       properties:

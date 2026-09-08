@@ -65,6 +65,14 @@ final class Settings: ObservableObject {
     @AppStorage("mapOverlay") var mapOverlay = true
     // 0 = follow my subscribed talkgroups
     @AppStorage("mapOverlayTG") var mapOverlayTG = 0
+    // Buddy watch: server-side push when watched callsigns key up
+    @AppStorage("buddyWatchEnabled") var buddyWatchEnabled = false
+    @AppStorage("buddyServerURL") var buddyServerURL = "https://dmr.carrierwave.app"
+    @AppStorage("buddyAPIToken") var buddyAPIToken = ""
+    @AppStorage("buddyDeviceID") var buddyDeviceID = ""
+    @AppStorage("buddyLastToken") var buddyLastToken = ""
+    @AppStorage("buddyLastSynced") var buddyLastSynced = ""
+    @AppStorage("buddiesJSON") var buddiesJSON = ""
 
     init() {
         // Migrate the old free-text options field once; in single-talkgroup
@@ -139,6 +147,24 @@ final class Settings: ObservableObject {
     var txTarget: Talkgroup? {
         guard txTargetTG > 0 else { return nil }
         return talkgroupList.first { $0.tg == UInt32(txTargetTG) }
+    }
+
+    var buddyConfigured: Bool {
+        !buddyServerURL.trimmingCharacters(in: .whitespaces).isEmpty && !buddyAPIToken.isEmpty
+    }
+
+    var buddyList: [Buddy] {
+        get {
+            guard let data = buddiesJSON.data(using: .utf8),
+                  let list = try? JSONDecoder().decode([Buddy].self, from: data)
+            else { return [] }
+            return list
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let json = String(bytes: data, encoding: .utf8) else { return }
+            buddiesJSON = json
+        }
     }
 
     var qrzConfigured: Bool {

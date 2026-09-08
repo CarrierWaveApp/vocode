@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var settings: Settings
     @State private var showSettings = false
     @State private var showMap = false
+    @StateObject private var buddyClient = BuddyClient()
     @State private var connExpanded = false
     @AppStorage("tgCollapsed") private var tgCollapsed = false
 
@@ -140,6 +141,8 @@ struct ContentView: View {
                 SettingsView()
             }
         }
+        .environmentObject(buddyClient)
+        .task { buddyClient.startup(settings) }
         .preferredColorScheme(.dark)
     }
 
@@ -687,6 +690,7 @@ struct SettingsView: View {
                         .font(CW.mono(11))
                         .foregroundStyle(CW.dim)
                 }
+                BuddySettingsSection()
                 Section {
                     ForEach(tgList) { $tg in
                         HStack(spacing: 12) {

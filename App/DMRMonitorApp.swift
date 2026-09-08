@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct DMRMonitorApp: App {
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
     @StateObject private var model: MonitorModel
     @StateObject private var settings = Settings()
     @StateObject private var notes: CallNotesStore
