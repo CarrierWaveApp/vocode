@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
     @State private var showSettings = false
+    @State private var showMap = false
     @State private var connExpanded = false
     @AppStorage("tgCollapsed") private var tgCollapsed = false
 
@@ -115,9 +116,11 @@ struct ContentView: View {
                         .font(CW.sans(15))
                         .disabled(model.heard.isEmpty)
                 }
+                // Button + navigationDestination: a NavigationLink directly
+                // in a toolbar swallows taps on iOS 26
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        StationMapView(overlay: model.overlay)
+                    Button {
+                        showMap = true
                     } label: {
                         Image(systemName: "map")
                     }
@@ -129,6 +132,9 @@ struct ContentView: View {
                         Image(systemName: "gearshape")
                     }
                 }
+            }
+            .navigationDestination(isPresented: $showMap) {
+                StationMapView(overlay: model.overlay)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
@@ -197,7 +203,7 @@ struct ContentView: View {
                 Circle()
                     .fill(model.isConnected ? CW.green : CW.xdim)
                     .frame(width: 8, height: 8)
-                Text(model.isConnected ? connectedSummary : model.link.label)
+                Text(model.isConnected ? settings.connectedSummary : model.link.label)
                     .font(CW.mono(13, medium: true))
                     .foregroundStyle(model.isConnected ? CW.white : CW.text)
                     .lineLimit(1)
@@ -207,20 +213,6 @@ struct ContentView: View {
             }
         }
         .buttonStyle(.plain)
-    }
-
-    private var connectedSummary: String {
-        if settings.netMode == "dstar" {
-            let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-            let name = XLXDirectory.reflector(forHost: host)?.name
-                ?? host.split(separator: ".").first.map(String.init)?.uppercased()
-                ?? host
-            return "\(name) \(settings.dstarModule.uppercased())"
-        }
-        if let server = BMDirectory.master(forHost: settings.host) {
-            return "\(server.id) \(server.country)"
-        }
-        return settings.host
     }
 
     private var logLink: some View {

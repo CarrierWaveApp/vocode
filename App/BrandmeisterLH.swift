@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 // One call event from the BrandMeister last-heard stream
 struct BMCall: Equatable {
@@ -19,8 +20,7 @@ final class BrandmeisterLH {
     var onCalls: (([BMCall]) -> Void)?
 
     private let queue = DispatchQueue(label: "bm.lh")
-    private var session: URLSession?
-    private var task: URLSessionWebSocketTask?
+    private var conn: NWConnection?
     private var talkgroups: Set<UInt32>
     private var stopped = false
     private var attempts = 0
@@ -70,6 +70,10 @@ final class BrandmeisterLH {
 
     // MARK: - Connection
 
+    // Network.framework, not URLSessionWebSocketTask: the server negotiates
+    // HTTP/2, and iOS's websocket task then attempts RFC 8441 websockets-
+    // over-h2, which BM's socket.io backend rejects ("bad response from
+    // the server"). NWProtocolWebSocket always does an HTTP/1.1 upgrade.
     private func open() {
         teardown()
         guard !talkgroups.isEmpty else {
@@ -79,21 +83,35 @@ final class BrandmeisterLH {
         let urlString = "wss://api.brandmeister.network/lh/socket.io/?EIO=4&transport=websocket"
         guard let url = URL(string: urlString) else { return }
         state = .connecting
-        let sess = URLSession(configuration: .default)
-        session = sess
-        let socket = sess.webSocketTask(with: url)
-        task = socket
+        let params = NWParameters.tls
+        let wsOptions = NWProtocolWebSocket.Options()
+        wsOptions.autoReplyPing = true
+        params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
+        let socket = NWConnection(to: .url(url), using: params)
+        conn = socket
         lastActivity = Date()
-        socket.resume()
+        socket.stateUpdateHandler = { [weak self] update in
+            guard let self, socket === self.conn, !self.stopped else { return }
+            switch update {
+            case .failed(let error):
+                self.onLog?("BM feed: \(error.localizedDescription)", true)
+                self.state = .failed(error.localizedDescription)
+                self.scheduleReconnect()
+            case .waiting(let error):
+                self.onLog?("BM feed waiting: \(error.localizedDescription)", true)
+            default:
+                break
+            }
+        }
+        socket.start(queue: queue)
         receive(on: socket)
         startTimers()
     }
 
     private func teardown() {
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
-        session?.invalidateAndCancel()
-        session = nil
+        conn?.stateUpdateHandler = nil
+        conn?.cancel()
+        conn = nil
         flusher?.cancel()
         flusher = nil
         watchdog?.cancel()
@@ -108,7 +126,8 @@ final class BrandmeisterLH {
         let base = min(30.0, pow(2.0, Double(attempts - 1)))
         let jitter = Double.random(in: 0.8...1.2)
         let delay = base * jitter
-        state = .connecting
+        // Keep any .failed reason visible during the backoff wait;
+        // open() flips to .connecting when the retry actually starts
         onLog?("BM feed reconnecting in \(Int(delay))s", false)
         queue.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, !self.stopped else { return }
@@ -116,21 +135,23 @@ final class BrandmeisterLH {
         }
     }
 
-    private func receive(on socket: URLSessionWebSocketTask) {
-        socket.receive { [weak self] result in
-            guard let self else { return }
-            self.queue.async {
-                guard socket === self.task, !self.stopped else { return }
-                switch result {
-                case .failure(let error):
-                    self.onLog?("BM feed: \(error.localizedDescription)", true)
-                    self.scheduleReconnect()
-                case .success(let message):
-                    self.lastActivity = Date()
-                    if case .string(let text) = message { self.handle(text) }
-                    self.receive(on: socket)
-                }
+    private func receive(on socket: NWConnection) {
+        socket.receiveMessage { [weak self] data, _, _, error in
+            guard let self, socket === self.conn, !self.stopped else { return }
+            if let error {
+                self.onLog?("BM feed: \(error.localizedDescription)", true)
+                // Surface the failure; otherwise a connect-failure loop
+                // re-sets .connecting, the didSet dedup swallows it, and
+                // the UI shows "connecting" forever with no reason
+                self.state = .failed(error.localizedDescription)
+                self.scheduleReconnect()
+                return
             }
+            self.lastActivity = Date()
+            if let data, let text = String(data: data, encoding: .utf8) {
+                self.handle(text)
+            }
+            self.receive(on: socket)
         }
     }
 
@@ -246,12 +267,17 @@ final class BrandmeisterLH {
     }
 
     private func send(_ text: String) {
-        task?.send(.string(text)) { [weak self] error in
-            guard let self, let error else { return }
-            self.queue.async {
-                guard !self.stopped else { return }
+        guard let conn else { return }
+        let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+        let context = NWConnection.ContentContext(identifier: "text", metadata: [metadata])
+        conn.send(
+            content: text.data(using: .utf8),
+            contentContext: context,
+            isComplete: true,
+            completion: .contentProcessed { [weak self] error in
+                guard let self, let error, !self.stopped else { return }
                 self.onLog?("BM send failed: \(error.localizedDescription)", true)
             }
-        }
+        )
     }
 }

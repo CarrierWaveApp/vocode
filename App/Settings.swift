@@ -208,6 +208,21 @@ final class Settings: ObservableObject {
         return DExtraConfig(host: host, callsign: call, module: module)
     }
 
+    // Human-readable label for the connected server/reflector
+    var connectedSummary: String {
+        if netMode == "dstar" {
+            let host = dstarHost.trimmingCharacters(in: .whitespaces)
+            let name = XLXDirectory.reflector(forHost: host)?.name
+                ?? host.split(separator: ".").first.map(String.init)?.uppercased()
+                ?? host
+            return "\(name) \(dstarModule.uppercased())"
+        }
+        if let server = BMDirectory.master(forHost: host) {
+            return "\(server.id) \(server.country)"
+        }
+        return host
+    }
+
     var homebrewConfig: HomebrewConfig? {
         guard let id = repeaterID,
               !host.isEmpty, !password.isEmpty, !callsign.isEmpty,

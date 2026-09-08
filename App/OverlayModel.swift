@@ -46,20 +46,31 @@ final class OverlayModel: ObservableObject {
             return
         }
         let feed = BrandmeisterLH(talkgroups: talkgroups)
-        feed.onState = { [weak self] newState in
-            Task { @MainActor in self?.state = newState }
+        // Guard every callback by client identity: after a stop()/start()
+        // cycle the old client's queued callbacks must not clobber the
+        // new client's state
+        feed.onState = { [weak self, weak feed] newState in
+            Task { @MainActor in
+                guard let self, self.client === feed else { return }
+                self.state = newState
+            }
         }
         feed.onLog = { [weak self] line, isError in
             Task { @MainActor in self?.log?(line, isError) }
         }
-        feed.onCalls = { [weak self] calls in
-            Task { @MainActor in self?.apply(calls) }
+        feed.onCalls = { [weak self, weak feed] calls in
+            Task { @MainActor in
+                guard let self, self.client === feed else { return }
+                self.apply(calls)
+            }
         }
         client = feed
         feed.connect()
     }
 
     func stop() {
+        client?.onState = nil
+        client?.onCalls = nil
         client?.disconnect()
         client = nil
         state = .idle
