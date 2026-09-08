@@ -693,6 +693,7 @@ struct SettingsView: View {
                         .foregroundStyle(CW.dim)
                 }
                 BuddySettingsSection()
+                TxMonitorSection()
                 Section {
                     ForEach(tgList) { $tg in
                         HStack(spacing: 12) {

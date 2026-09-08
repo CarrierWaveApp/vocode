@@ -53,6 +53,8 @@ final class MonitorModel: ObservableObject {
 
     private var mic: MicCapture?
     private var txBatcher: TxBatcher?
+    let txMonitor = TxMonitor()
+    var monitorOut: AudioOutput?
     private var txDst: UInt32 = 0
     private var txPending = false
 
@@ -317,6 +319,8 @@ final class MonitorModel: ObservableObject {
         let batcher = TxBatcher(encoder: enc) { [weak rewind] payload in
             rewind?.sendTransmitAudio(payload)
         }
+        txMonitor.reset()
+        batcher.monitor = txMonitor
         setTransmitAudioSession(true)
         let m = MicCapture()
         m.onFrame = { pcm in batcher.submit(pcm) }
