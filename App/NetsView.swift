@@ -50,6 +50,12 @@ struct NetsView: View {
                 }
             }
             Section {
+                Button {
+                    fetchDirectory()
+                } label: {
+                    Label("Fetch net directory", systemImage: "arrow.down.circle")
+                        .font(CW.sans(15))
+                }
                 ShareLink(
                     item: NetsExport(nets: settings.netList),
                     preview: SharePreview("DMR nets")
@@ -71,6 +77,10 @@ struct NetsView: View {
                 }
             } header: {
                 SectionLabel("Sharing")
+            } footer: {
+                Text("The directory imports nets disabled; switch on the ones you want reminders for.")
+                    .font(CW.mono(11))
+                    .foregroundStyle(CW.dim)
             }
         }
         .cwList()
@@ -145,6 +155,24 @@ struct NetsView: View {
         }
     }
 
+    // Community net directory (scraped from dvnets.com, see the
+    // dmr-lookout repo); an update is a re-fetch — merge is by net id
+    private static let directoryURL = URL(
+        string: "https://raw.githubusercontent.com/jsvana/dmr-lookout/main/nets/dmr-nets.json"
+    )!
+
+    private func fetchDirectory() {
+        importResult = "fetching…"
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: Self.directoryURL)
+                merge(data)
+            } catch {
+                importResult = error.localizedDescription
+            }
+        }
+    }
+
     private func importNets(_ result: Result<URL, Error>) {
         guard case .success(let url) = result else { return }
         guard url.startAccessingSecurityScopedResource() else { return }
@@ -153,6 +181,10 @@ struct NetsView: View {
             importResult = "couldn't read file"
             return
         }
+        merge(data)
+    }
+
+    private func merge(_ data: Data) {
         let decoder = JSONDecoder()
         let incoming: [Net]
         if let file = try? decoder.decode(NetsFile.self, from: data) {
@@ -168,7 +200,12 @@ struct NetsView: View {
         var added = 0
         for net in incoming where net.talkgroup > 0 {
             if let index = list.firstIndex(where: { $0.id == net.id }) {
-                list[index] = net
+                // Schedule/TG updates land, but the user's own choices
+                // (enabled, reminder leads) survive a re-fetch
+                var merged = net
+                merged.enabled = list[index].enabled
+                merged.leads = list[index].leads
+                list[index] = merged
                 updated += 1
             } else {
                 list.append(net)
