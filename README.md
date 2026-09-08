@@ -18,7 +18,7 @@ encoder (GPL v3, vendored under `Packages/AMBE/Sources/CMBELib/encoder/`
 with a custom `dmr_pack.cc` that emits mbelib's cell layout — the package
 test proves encode→decode symmetry). No transmit on homebrew mode.
 
-No App Store distribution intended.
+Distributed via TestFlight; buddy watch pushes route per-build to the APNs sandbox (dev installs) or production (TestFlight/App Store).
 
 ## Layout
 
