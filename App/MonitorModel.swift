@@ -260,7 +260,7 @@ final class MonitorModel: ObservableObject {
 
     func clearLog() { log.removeAll() }
 
-    private func appendLog(_ line: String, error: Bool = false) {
+    func appendLog(_ line: String, error: Bool = false) {
         log.insert(LogEntry(line: line, isError: error), at: 0)
         if log.count > maxLog { log.removeLast() }
     }
@@ -317,12 +317,14 @@ final class MonitorModel: ObservableObject {
         let batcher = TxBatcher(encoder: enc) { [weak rewind] payload in
             rewind?.sendTransmitAudio(payload)
         }
+        setTransmitAudioSession(true)
         let m = MicCapture()
         m.onFrame = { pcm in batcher.submit(pcm) }
         do {
             try m.start()
         } catch {
             appendLog("microphone failed to start", error: true)
+            setTransmitAudioSession(false)
             return
         }
         mic = m
@@ -344,6 +346,7 @@ final class MonitorModel: ObservableObject {
         if let index = txBursts.firstIndex(where: { $0.ended == nil }) {
             txBursts[index].ended = Date()
         }
+        setTransmitAudioSession(false)
     }
 
     func clearHeard() { heard.removeAll() }

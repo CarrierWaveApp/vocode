@@ -68,12 +68,12 @@ final class AudioOutput {
 
     func start() throws {
         let session = AVAudioSession.sharedInstance()
-        // .playAndRecord excludes Bluetooth routes unless explicitly allowed;
-        // without these options headphone users hear nothing.
-        try session.setCategory(
-            .playAndRecord, mode: .spokenAudio,
-            options: [.defaultToSpeaker, .allowBluetoothHFP, .allowBluetoothA2DP]
-        )
+        // .playback, not .playAndRecord: playback routes to Bluetooth A2DP
+        // automatically at full quality. Under .playAndRecord, a device
+        // supporting both profiles (e.g. AirPods Max) gets routed to HFP,
+        // whose SCO link tends to come up silent when nothing records.
+        // Transmit flips the session to .playAndRecord for its duration.
+        try session.setCategory(.playback, mode: .spokenAudio)
         try session.setActive(true)
         try engine.start()
         player.play()
