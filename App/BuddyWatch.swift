@@ -78,9 +78,17 @@ final class BuddyClient: ObservableObject {
         status = .syncing
         do {
             if apnsToken != settings.buddyLastToken {
+                // Debug (xc deploy) builds vend sandbox APNs tokens;
+                // Release (TestFlight/App Store) builds vend production
+                #if DEBUG
+                let apnsEnv = "sandbox"
+                #else
+                let apnsEnv = "production"
+                #endif
                 try await post(settings, path: "/v1/devices", body: [
                     "device_id": settings.buddyDeviceID,
                     "apns_token": apnsToken,
+                    "apns_env": apnsEnv,
                     "platform": "ios",
                     "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"]
                         as? String ?? ""
