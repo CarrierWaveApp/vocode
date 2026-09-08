@@ -279,7 +279,9 @@ struct TGRow: View {
                 Text(tg.name.isEmpty ? "TG \(tg.tg)" : tg.name)
                     .font(CW.sans(15, .medium))
                     .foregroundStyle(tg.listen == .off ? CW.dim : CW.white)
-                Text("TG \(tg.tg) · \(tg.listen.rawValue.uppercased())")
+                // String(tg) keeps Text's localized interpolation from
+                // rendering 3100 as "3,100"
+                Text("TG \(String(tg.tg)) · \(tg.listen.rawValue.uppercased())")
                     .font(CW.mono(11))
                     .foregroundStyle(CW.dim)
             }
