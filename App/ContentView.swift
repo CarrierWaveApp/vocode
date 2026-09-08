@@ -116,6 +116,13 @@ struct ContentView: View {
                         .disabled(model.heard.isEmpty)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        StationMapView(overlay: model.overlay)
+                    } label: {
+                        Image(systemName: "map")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showSettings = true
                     } label: {
@@ -670,6 +677,21 @@ struct SettingsView: View {
                     NavigationLink("Callsign notes") { CallNotesView() }
                 } header: {
                     SectionLabel("Data")
+                }
+                Section {
+                    TextField("QRZ username", text: settings.$qrzUser)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .font(CW.mono(14))
+                        .onChange(of: settings.qrzUser) { model.applyQRZ(settings) }
+                    SecureField("QRZ password", text: settings.$qrzPassword)
+                        .onChange(of: settings.qrzPassword) { model.applyQRZ(settings) }
+                } header: {
+                    SectionLabel("QRZ")
+                } footer: {
+                    Text("Used to place stations on the map. A QRZ subscription is required for coordinates.")
+                        .font(CW.mono(11))
+                        .foregroundStyle(CW.dim)
                 }
                 Section {
                     ForEach(tgList) { $tg in

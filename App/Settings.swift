@@ -58,6 +58,13 @@ final class Settings: ObservableObject {
     // Default: exactly one talkgroup subscribed at a time; going live on
     // one switches the others off. Turn off for multi-talkgroup monitoring.
     @AppStorage("singleTG") var singleTG = true
+    // QRZ XML API credentials for map geocoding; plain AppStorage matches
+    // the existing hotspot-password precedent
+    @AppStorage("qrzUser") var qrzUser = ""
+    @AppStorage("qrzPassword") var qrzPassword = ""
+    @AppStorage("mapOverlay") var mapOverlay = true
+    // 0 = follow my subscribed talkgroups
+    @AppStorage("mapOverlayTG") var mapOverlayTG = 0
 
     init() {
         // Migrate the old free-text options field once; in single-talkgroup
@@ -132,6 +139,15 @@ final class Settings: ObservableObject {
     var txTarget: Talkgroup? {
         guard txTargetTG > 0 else { return nil }
         return talkgroupList.first { $0.tg == UInt32(txTargetTG) }
+    }
+
+    var qrzConfigured: Bool {
+        !qrzUser.trimmingCharacters(in: .whitespaces).isEmpty && !qrzPassword.isEmpty
+    }
+
+    // Talkgroups the map's BrandMeister overlay follows
+    var mapOverlayTalkgroups: Set<UInt32> {
+        mapOverlayTG > 0 ? [UInt32(mapOverlayTG)] : Set(activeTalkgroups)
     }
 
     // Subscribed on the network (live + muted)

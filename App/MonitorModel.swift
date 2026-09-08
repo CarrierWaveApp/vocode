@@ -15,6 +15,9 @@ struct HeardEntry: Identifiable, Equatable {
     // and a marker that src is a callsign hash rather than a DMR ID
     var channel: String?
     var dstar: Bool = false
+    // Map coordinates, attached asynchronously from QRZ
+    var point: GeoPoint?
+    var geoSource: GeoSource?
 
     var isActive: Bool { ended == nil }
 }
@@ -59,6 +62,10 @@ final class MonitorModel: ObservableObject {
     private var scout: MasterScout?
     private let pipeline = DecodePipeline()
     private let lookup = CallsignLookup()
+    let qrz = QRZLookup()
+    // BM map overlay; independent of the DMR link on purpose, so the map
+    // works while disconnected — disconnect() must not touch it
+    let overlay: OverlayModel
     private let notes: CallNotesStore
     private let maxHeard = 200
     private let maxLog = 300
@@ -67,6 +74,10 @@ final class MonitorModel: ObservableObject {
 
     init(notes: CallNotesStore) {
         self.notes = notes
+        overlay = OverlayModel(qrz: qrz)
+        overlay.log = { [weak self] line, isError in
+            self?.appendLog(line, error: isError)
+        }
         pipeline.onCallStart = { [weak self] pkt in
             Task { @MainActor in self?.openCall(pkt) }
         }
@@ -88,6 +99,7 @@ final class MonitorModel: ObservableObject {
             connectRewind(settings)
         }
         Task { await notes.refreshStale() }
+        applyQRZ(settings)
     }
 
     // Probe every BrandMeister master, point the host at the fastest one,
@@ -185,6 +197,7 @@ final class MonitorModel: ObservableObject {
         entry.dstar = true
         heard.insert(entry, at: 0)
         if heard.count > maxHeard { heard.removeLast() }
+        Task { await geocode(streamID: id, callsign: call) }
     }
 
     // Stable pseudo-ID so timeline lanes key by station; the high bit keeps
@@ -356,8 +369,11 @@ final class MonitorModel: ObservableObject {
                 heard[i].callsign = call
                 if let call { heard[i].note = notes.note(for: call) }
             }
+            if let call { await geocode(streamID: id, callsign: call) }
         }
     }
+
+    // QRZ geocoding lives in MonitorModel+Geo.swift
 
     private func closeCall(_ stream: UInt32) {
         if let i = heard.firstIndex(where: { $0.id == stream }) {

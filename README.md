@@ -64,6 +64,17 @@ files are cached in Application Support so notes work offline.
 Notes key off the callsign resolved from radioid.net, so a DMR ID that
 isn't registered there gets no note.
 
+## Map
+
+The map toolbar button shows heard stations (filled pins) plus a live
+BrandMeister network overlay (hollow pins) pulled from BM's last-heard
+Socket.IO feed, joined per talkgroup room. The overlay follows your
+subscribed talkgroups by default, or pick one in the map's filter menu;
+it only runs while the map is on screen. Coordinates come from the QRZ
+XML API (Settings → QRZ; a QRZ subscription is required for lat/lon),
+falling back to grid-square centers, and are cached on disk. Pins fade
+with age: heard stations linger an hour, overlay stations 15 minutes.
+
 ## What it does not do yet
 
 - Dynamic TG subscription by kerchunk. That needs a valid LC header
