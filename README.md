@@ -75,6 +75,17 @@ XML API (Settings → QRZ; a QRZ subscription is required for lat/lon),
 falling back to grid-square centers, and are cached on disk. Pins fade
 with age: heard stations linger an hour, overlay stations 15 minutes.
 
+## Nets
+
+The NETS section on the main screen tracks your scheduled nets: add them
+under Settings → Nets (or tap the section) with a talkgroup, weekly
+schedule, and the net's own time zone — times don't shift when you
+travel. Reminders are local notifications 10/5 minutes before or at
+start (iOS keeps only 64 pending reminders; the list shows the budget).
+Join — from the section or straight from a reminder — makes the net's
+talkgroup live and connects. Share a net list as JSON and import one;
+re-importing an updated list updates in place rather than duplicating.
+
 ## What it does not do yet
 
 - Dynamic TG subscription by kerchunk. That needs a valid LC header
