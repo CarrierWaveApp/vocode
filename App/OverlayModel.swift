@@ -103,9 +103,13 @@ final class OverlayModel: ObservableObject {
                 talkgroup: call.destinationID, lastHeard: call.time, active: call.active,
                 point: nil, geoSource: nil
             )
-            station.lastHeard = call.time
-            station.active = call.active
-            station.talkgroup = call.destinationID
+            // Backlog rows can arrive out of order; never regress a
+            // station to an older call
+            if call.time >= station.lastHeard {
+                station.lastHeard = call.time
+                station.active = call.active
+                station.talkgroup = call.destinationID
+            }
             if station.name == nil { station.name = call.sourceName }
             stations[call.sourceID] = station
             if station.point == nil { geocode(station) }

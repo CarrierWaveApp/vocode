@@ -167,6 +167,7 @@ final class BrandmeisterLH {
             for group in talkgroups {
                 send("42[\"join\",\"dst_\(group)\"]")
             }
+            requestBacklog()
         } else if text == "2" {
             send("3")
         } else if text.hasPrefix("42") {
@@ -213,21 +214,40 @@ final class BrandmeisterLH {
         return json
     }
 
+    // History replay: same mqtt events the live stream uses, tagged
+    // "LH-Startup", terminated by searchHouseComplete. This is the only
+    // history API BrandMeister has — there is no REST endpoint for it.
+    private func requestBacklog() {
+        let rules = talkgroups.map { group in
+            ["id": "DestinationID", "operator": "equal", "value": Int(group)] as [String: Any]
+        }
+        let request: [String: Any] = [
+            "query": ["condition": "OR", "rules": rules],
+            "amount": 25
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: request),
+              let json = String(data: data, encoding: .utf8) else { return }
+        send("42[\"searchHouse\",\(json)]")
+    }
+
     private func process(_ call: [String: Any]) {
         guard let dst = number(call["DestinationID"]), talkgroups.contains(dst),
               let src = number(call["SourceID"]),
               let sourceCall = call["SourceCall"] as? String, !sourceCall.isEmpty
         else { return }
         let event = call["Event"] as? String ?? ""
+        let startTime = number(call["Start"]) ?? 0
         let stopTime = number(call["Stop"]) ?? 0
         let name = (call["SourceName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        // Server timestamps, so backlog rows carry their real age
+        let stamp = stopTime > 0 ? stopTime : startTime
         pending.append(BMCall(
             sourceID: src,
             sourceCall: sourceCall.uppercased(),
             sourceName: name,
             destinationID: dst,
             active: event != "Session-Stop" && stopTime == 0,
-            time: Date()
+            time: stamp > 0 ? Date(timeIntervalSince1970: TimeInterval(stamp)) : Date()
         ))
     }
 
