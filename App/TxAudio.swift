@@ -62,6 +62,27 @@ final class MicCapture {
 
     var onFrame: (([Int16]) -> Void)?
 
+    private var capturing = false
+    private var configObserver: NSObjectProtocol?
+
+    init() {
+        // A route change (e.g. Bluetooth headset connecting) stops the engine
+        // and can change the input hardware format; re-tap at the new format.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.capturing else { return }
+            self.stop()
+            try? self.start()
+        }
+    }
+
+    deinit {
+        if let configObserver {
+            NotificationCenter.default.removeObserver(configObserver)
+        }
+    }
+
     func start() throws {
         let input = engine.inputNode
         let hwFormat = input.outputFormat(forBus: 0)
@@ -75,9 +96,11 @@ final class MicCapture {
         }
         engine.prepare()
         try engine.start()
+        capturing = true
     }
 
     func stop() {
+        capturing = false
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         converter = nil
