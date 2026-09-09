@@ -323,7 +323,13 @@ final class MonitorModel: ObservableObject {
         batcher.monitor = txMonitor
         setTransmitAudioSession(true)
         let m = MicCapture()
-        m.onFrame = { pcm in batcher.submit(pcm) }
+        m.onFrame = { [txMonitor] pcm in
+            txMonitor.appendMic(pcm)
+            batcher.submit(pcm)
+        }
+        m.onFormat = { [weak self] description in
+            Task { @MainActor in self?.appendLog("TX mic: \(description)") }
+        }
         do {
             try m.start()
         } catch {

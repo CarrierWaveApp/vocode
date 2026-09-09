@@ -28,9 +28,17 @@ extension MonitorModel {
     // What the network heard: play back the encoded->decoded copy of the
     // last transmission
     func playLastTX() {
-        guard !transmitting else { return }
-        let audio = txMonitor.audio
-        guard !audio.isEmpty else { return }
+        playMonitor(txMonitor.audio)
+    }
+
+    // The conditioned mic BEFORE the codec — bisects capture problems
+    // from codec problems
+    func playLastMic() {
+        playMonitor(txMonitor.micAudio)
+    }
+
+    private func playMonitor(_ audio: [Float]) {
+        guard !transmitting, !audio.isEmpty else { return }
         let output = monitorOut ?? AudioOutput()
         monitorOut = output
         try? output.start()

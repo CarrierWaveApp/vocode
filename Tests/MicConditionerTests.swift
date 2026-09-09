@@ -16,18 +16,16 @@ final class MicConditionerTests: XCTestCase {
         Float(frame.map { abs(Int32($0)) }.max() ?? 0) / 32767
     }
 
-    func testQuietSpeechIsBoostedTowardTarget() {
+    func testFixedMakeupGainApplies() {
         var conditioner = MicConditioner()
         var lastPeak: Float = 0
-        // 4 seconds of a quiet 300 Hz tone at -30 dBFS
-        for var frame in sine(300, amplitude: 0.03, frames: 200) {
+        for var frame in sine(300, amplitude: 0.1, frames: 20) {
             conditioner.process(&frame)
             lastPeak = peak(frame)
         }
-        // -30 dBFS in, max makeup gain 8x -> ~0.24 out; the cap is
-        // deliberate since .voiceChat's system AGC runs ahead of us
-        XCTAssertGreaterThan(lastPeak, 0.2, "AGC should approach the target level")
-        XCTAssertLessThanOrEqual(lastPeak, 0.98)
+        // 2x fixed gain, minus a little high-pass loss at 300 Hz
+        XCTAssertGreaterThan(lastPeak, 0.15)
+        XCTAssertLessThan(lastPeak, 0.25)
     }
 
     func testLoudInputIsLimitedNotWrapped() {

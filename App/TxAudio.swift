@@ -29,19 +29,13 @@ final class AMBEEncoder {
 struct MicConditioner {
     private var hpPrevIn: Float = 0
     private var hpPrevOut: Float = 0
-    private var envelope: Float = 0
-    private var gain: Float = 1
 
-    // One-pole high-pass coefficient for 100 Hz at 8 kHz
+    // Deliberately minimal while TX distortion is being bisected: a
+    // ~100 Hz one-pole high-pass, a FIXED 2x makeup gain (the .voiceChat
+    // system AGC handles dynamics), and a soft knee. The earlier dynamic
+    // AGC modulated gain at audio rate, which is itself distortion.
     private let hpCoeff: Float = 0.9245
-    // Modest target: .voiceChat already runs the system AGC ahead of us,
-    // and AMBE distorts (and growls low) on hot or clipped input
-    private let targetPeak: Float = 0.35
-    private let maxGain: Float = 8
-    // Below this the input is noise floor: hold gain, don't amplify hiss
-    private let silenceFloor: Float = 0.003
-    private let envelopeDecay: Float = 0.9995
-    private let gainRise: Float = 0.0005
+    private let fixedGain: Float = 2.0
     private let softKnee: Float = 0.6
 
     mutating func reset() {
@@ -55,23 +49,7 @@ struct MicConditioner {
             hpPrevIn = sample
             hpPrevOut = highPassed
 
-            envelope = max(abs(highPassed), envelope * envelopeDecay)
-            let desired: Float
-            if envelope < silenceFloor {
-                desired = gain
-            } else {
-                desired = min(maxGain, targetPeak / envelope)
-            }
-            // Instant attack, slow release: a syllable onset must drop the
-            // gain immediately (clipping every word start was audible),
-            // while recovery between words stays gradual
-            if desired < gain {
-                gain = desired
-            } else {
-                gain += (desired - gain) * gainRise
-            }
-            var shaped = highPassed * gain
-            // Soft knee above the target region instead of a hard clamp
+            var shaped = highPassed * fixedGain
             let magnitude = abs(shaped)
             if magnitude > softKnee {
                 let over = magnitude - softKnee
@@ -89,11 +67,13 @@ final class TxMonitor {
     private let lock = NSLock()
     private let decoder = AMBEDecoder()
     private var samples: [Float] = []
+    private var micSamples: [Float] = []
     private let maxSamples = 8000 * 30
 
     func reset() {
         lock.lock()
         samples = []
+        micSamples = []
         decoder.reset()
         lock.unlock()
     }
@@ -108,10 +88,26 @@ final class TxMonitor {
         lock.unlock()
     }
 
+    // The conditioned PCM going INTO the encoder — pre-codec reference
+    // for bisecting capture problems from codec problems
+    func appendMic(_ frame: [Int16]) {
+        lock.lock()
+        if micSamples.count < maxSamples {
+            micSamples.append(contentsOf: frame.map { Float($0) / 32768 })
+        }
+        lock.unlock()
+    }
+
     var audio: [Float] {
         lock.lock()
         defer { lock.unlock() }
         return samples
+    }
+
+    var micAudio: [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        return micSamples
     }
 }
 
@@ -156,6 +152,8 @@ final class MicCapture {
     )!
 
     var onFrame: (([Int16]) -> Void)?
+    // Diagnostic: reports the live input format at (re)start
+    var onFormat: ((String) -> Void)?
 
     private var capturing = false
     private var configObserver: NSObjectProtocol?
@@ -187,6 +185,7 @@ final class MicCapture {
         converter = AVAudioConverter(from: hwFormat, to: outFormat)
         residue = []
         conditioner.reset()
+        onFormat?("\(Int(hwFormat.sampleRate)) Hz, \(hwFormat.channelCount) ch → 8000 Hz")
         input.installTap(onBus: 0, bufferSize: 1024, format: hwFormat) { [weak self] buffer, _ in
             self?.handle(buffer)
         }

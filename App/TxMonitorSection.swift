@@ -11,6 +11,10 @@ struct TxMonitorSection: View {
                 model.playLastTX()
             }
             .disabled(!model.hasLastTX || model.transmitting)
+            Button("Play mic (before codec)") {
+                model.playLastMic()
+            }
+            .disabled(!model.hasLastTX || model.transmitting)
         } header: {
             SectionLabel("Transmit")
         } footer: {
