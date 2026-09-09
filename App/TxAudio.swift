@@ -34,13 +34,15 @@ struct MicConditioner {
 
     // One-pole high-pass coefficient for 100 Hz at 8 kHz
     private let hpCoeff: Float = 0.9245
-    private let targetPeak: Float = 0.5
-    private let maxGain: Float = 16
+    // Modest target: .voiceChat already runs the system AGC ahead of us,
+    // and AMBE distorts (and growls low) on hot or clipped input
+    private let targetPeak: Float = 0.35
+    private let maxGain: Float = 8
     // Below this the input is noise floor: hold gain, don't amplify hiss
     private let silenceFloor: Float = 0.003
     private let envelopeDecay: Float = 0.9995
     private let gainRise: Float = 0.0005
-    private let gainFall: Float = 0.005
+    private let softKnee: Float = 0.6
 
     mutating func reset() {
         self = MicConditioner()
@@ -60,9 +62,23 @@ struct MicConditioner {
             } else {
                 desired = min(maxGain, targetPeak / envelope)
             }
-            gain += (desired - gain) * (desired > gain ? gainRise : gainFall)
-            let shaped = max(-0.98, min(0.98, highPassed * gain))
-            frame[index] = Int16(shaped * 32767)
+            // Instant attack, slow release: a syllable onset must drop the
+            // gain immediately (clipping every word start was audible),
+            // while recovery between words stays gradual
+            if desired < gain {
+                gain = desired
+            } else {
+                gain += (desired - gain) * gainRise
+            }
+            var shaped = highPassed * gain
+            // Soft knee above the target region instead of a hard clamp
+            let magnitude = abs(shaped)
+            if magnitude > softKnee {
+                let over = magnitude - softKnee
+                let squashed = softKnee + over / (1 + over * 4)
+                shaped = shaped < 0 ? -squashed : squashed
+            }
+            frame[index] = Int16(max(-0.98, min(0.98, shaped)) * 32767)
         }
     }
 }
