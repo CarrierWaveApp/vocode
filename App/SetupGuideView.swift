@@ -45,6 +45,21 @@ struct SetupGuideView: View {
             } header: {
                 SectionLabel("Homebrew mode (TGIF and others)")
             }
+            Section {
+                Step(1, "Create an account at allstarlink.org with a copy of your license, "
+                    + "then open the portal.")
+                Step(2, "Add a server (Portal → Servers), then request a node number under it "
+                    + "(Portal → Node Requests). The app acts as its own node, so give it a node "
+                    + "of its own — don't reuse a hardware node's number.")
+                Step(3, "The node number and its password from the node settings page go in the "
+                    + "fields here, along with your callsign.")
+                Step(4, "Pick a node to link to and tap Connect. The first connect after setup "
+                    + "can be refused while AllStarLink's DNS catches up — wait a minute or two "
+                    + "and try again.")
+                GuideLink("allstarlink.org", url: "https://www.allstarlink.org")
+            } header: {
+                SectionLabel("AllStar mode")
+            }
         }
         .cwList()
         .navigationTitle("Setup guide")

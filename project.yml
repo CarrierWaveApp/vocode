@@ -18,6 +18,8 @@ targets:
           - DMRMonitor.entitlements
       - path: Resources/Fonts
         buildPhase: resources
+      - path: Resources/ASLNodes
+        buildPhase: resources
       - path: Resources/Assets.xcassets
     dependencies:
       - package: AMBE

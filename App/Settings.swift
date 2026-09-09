@@ -50,6 +50,10 @@ final class Settings: ObservableObject {
     @AppStorage("talkgroupsJSON") var talkgroupsJSON = ""
     @AppStorage("dstarHost") var dstarHost = ""
     @AppStorage("dstarModule") var dstarModule = "B"
+    // AllStar: our registered node credentials plus the node to link to
+    @AppStorage("aslMyNode") var aslMyNode = ""
+    @AppStorage("aslPassword") var aslPassword = ""
+    @AppStorage("aslTarget") var aslTarget = ""
     // Open Terminal only: probe all masters at connect and use the fastest.
     // "Master" is BrandMeister's own term for its servers.
     // swiftlint:disable:next inclusive_language
@@ -249,8 +253,23 @@ final class Settings: ObservableObject {
         return DExtraConfig(host: host, callsign: call, module: module)
     }
 
+    // Partial config for AllStar; host/port get resolved at connect time
+    var allstarConfig: IAXConfig? {
+        let myNode = aslMyNode.trimmingCharacters(in: .whitespaces)
+        let target = aslTarget.trimmingCharacters(in: .whitespaces)
+        guard !myNode.isEmpty, !aslPassword.isEmpty, !target.isEmpty else { return nil }
+        return IAXConfig(
+            myNode: myNode, password: aslPassword, targetNode: target,
+            host: "", port: 4569,
+            callsign: callsign.trimmingCharacters(in: .whitespaces).uppercased()
+        )
+    }
+
     // Human-readable label for the connected server/reflector
     var connectedSummary: String {
+        if netMode == "allstar" {
+            return "Node \(aslTarget.trimmingCharacters(in: .whitespaces))"
+        }
         if netMode == "dstar" {
             let host = dstarHost.trimmingCharacters(in: .whitespaces)
             let name = XLXDirectory.reflector(forHost: host)?.name

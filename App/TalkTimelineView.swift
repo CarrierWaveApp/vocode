@@ -136,7 +136,7 @@ struct TalkTimelineView: View {
         let myBursts = model.txBursts
             .filter { ($0.ended ?? now) > cutoff }
             .reversed()
-            .map { TalkBurst(start: $0.started, end: $0.ended, dst: $0.dst) }
+            .map { TalkBurst(start: $0.started, end: $0.ended, dst: $0.dst, channel: $0.channel) }
         if !myBursts.isEmpty {
             let call = settings.callsign.trimmingCharacters(in: .whitespaces)
             lanes.append(StationLane(

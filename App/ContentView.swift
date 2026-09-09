@@ -96,13 +96,7 @@ struct ContentView: View {
             .cwList()
             .safeAreaInset(edge: .bottom) {
                 if model.isConnected {
-                    TalkBar(
-                        target: settings.txTarget,
-                        armed: settings.txTarget?.listen == .live,
-                        transmitting: model.transmitting,
-                        onPress: { model.beginTransmit(settings) },
-                        onRelease: { model.endTransmit() }
-                    )
+                    TalkBarHost()
                 }
             }
             .navigationTitle("DMR Monitor")
@@ -331,8 +325,39 @@ struct TGRow: View {
     }
 }
 
+// Picks the TX destination for the talk bar: the linked node on
+// AllStar, the selected talkgroup everywhere else
+struct TalkBarHost: View {
+    @EnvironmentObject var model: MonitorModel
+    @EnvironmentObject var settings: Settings
+
+    var body: some View {
+        if settings.netMode == "allstar" {
+            let node = settings.aslTarget.trimmingCharacters(in: .whitespaces)
+            TalkBar(
+                title: "Node \(node)",
+                tag: "NODE \(node)",
+                armed: true,
+                transmitting: model.transmitting,
+                onPress: { model.beginTransmit(settings) },
+                onRelease: { model.endTransmit() }
+            )
+        } else {
+            TalkBar(
+                title: settings.txTarget.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name },
+                tag: settings.txTarget.map { "TG \($0.tg)" },
+                armed: settings.txTarget?.listen == .live,
+                transmitting: model.transmitting,
+                onPress: { model.beginTransmit(settings) },
+                onRelease: { model.endTransmit() }
+            )
+        }
+    }
+}
+
 struct TalkBar: View {
-    let target: Talkgroup?
+    let title: String?   // TX destination display name
+    let tag: String?     // "TG 3100" or "NODE 55553"
     let armed: Bool
     let transmitting: Bool
     let onPress: () -> Void
@@ -345,9 +370,9 @@ struct TalkBar: View {
                 .foregroundStyle(transmitting ? CW.red : (armed ? CW.blue : CW.xdim))
                 .symbolEffect(.pulse, isActive: transmitting)
             VStack(alignment: .leading, spacing: 2) {
-                Text(target.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name } ?? "No TX target")
+                Text(title ?? "No TX target")
                     .font(CW.sans(14, .semibold))
-                    .foregroundStyle(target != nil ? CW.white : CW.dim)
+                    .foregroundStyle(title != nil ? CW.white : CW.dim)
                 Text(subtitle)
                     .font(CW.mono(10))
                     .tracking(0.8)
@@ -381,11 +406,9 @@ struct TalkBar: View {
     }
 
     private var subtitle: String {
-        guard let target else { return "SELECT IN TALKGROUPS" }
-        if transmitting { return "TRANSMITTING · TG \(target.tg)" }
-        return target.listen == .live
-            ? "TX TARGET · TG \(target.tg)"
-            : "TX DISARMED · TG \(target.tg)"
+        guard let tag else { return "SELECT IN TALKGROUPS" }
+        if transmitting { return "TRANSMITTING · \(tag)" }
+        return armed ? "TX TARGET · \(tag)" : "TX DISARMED · \(tag)"
     }
 }
 
@@ -509,6 +532,72 @@ struct Tag: View {
     }
 }
 
+// QRZ credentials for map geocoding, split out to keep SettingsView readable
+private struct QRZSection: View {
+    @EnvironmentObject var settings: Settings
+    @EnvironmentObject var model: MonitorModel
+
+    var body: some View {
+        Section {
+            TextField("QRZ username", text: settings.$qrzUser)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .font(CW.mono(14))
+                .onChange(of: settings.qrzUser) { model.applyQRZ(settings) }
+            SecureField("QRZ password", text: settings.$qrzPassword)
+                .onChange(of: settings.qrzPassword) { model.applyQRZ(settings) }
+        } header: {
+            SectionLabel("QRZ")
+        } footer: {
+            Text("Used to place stations on the map. A QRZ subscription is required for coordinates.")
+                .font(CW.mono(11))
+                .foregroundStyle(CW.dim)
+        }
+    }
+}
+
+// Per-mode station credentials, split out to keep SettingsView readable
+private struct StationSection: View {
+    @EnvironmentObject var settings: Settings
+
+    var body: some View {
+        Section {
+            if settings.netMode == "allstar" {
+                TextField("My node number", text: settings.$aslMyNode)
+                    .keyboardType(.numberPad)
+                    .font(CW.mono(14))
+                SecureField("Node password", text: settings.$aslPassword)
+                TextField("Callsign", text: settings.$callsign)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(CW.mono(14))
+            } else if settings.netMode == "dstar" {
+                TextField("Callsign", text: settings.$callsign)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(CW.mono(14))
+            } else {
+                TextField("DMR ID", text: settings.$dmrID)
+                    .keyboardType(.numberPad)
+                    .font(CW.mono(14))
+                SecureField("Hotspot password", text: settings.$password)
+            }
+            if settings.netMode == "homebrew" {
+                TextField("Callsign", text: settings.$callsign)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(CW.mono(14))
+                TextField("Hotspot suffix", text: settings.$suffix)
+                    .keyboardType(.numberPad)
+                    .font(CW.mono(14))
+                TextField("Location", text: settings.$location)
+            }
+        } header: {
+            SectionLabel("Station")
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
@@ -530,6 +619,15 @@ struct SettingsView: View {
             return scout.results[selected.id]
         }
         return scout.results[MasterScout.customKey]
+    }
+
+    private var allstarLabel: String {
+        let target = settings.aslTarget.trimmingCharacters(in: .whitespaces)
+        guard !target.isEmpty else { return "Choose a node" }
+        if let node = ASLDirectory.shared.node(forNumber: target) {
+            return "\(target) · \(node.callsign)"
+        }
+        return "Node \(target)"
     }
 
     private var reflectorLabel: String {
@@ -587,6 +685,7 @@ struct SettingsView: View {
                         Text("Open Terminal (BM)").tag("openterminal")
                         Text("Homebrew (hotspot)").tag("homebrew")
                         Text("D-STAR (XLX)").tag("dstar")
+                        Text("AllStar").tag("allstar")
                     }
                     if settings.netMode == "homebrew" {
                         TextField("Host", text: settings.$host)
@@ -596,6 +695,18 @@ struct SettingsView: View {
                         TextField("Port", value: settings.$port, format: .number)
                             .keyboardType(.numberPad)
                             .font(CW.mono(14))
+                    } else if settings.netMode == "allstar" {
+                        NavigationLink {
+                            NodePickerView()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(allstarLabel)
+                                    .font(CW.mono(14))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer()
+                            }
+                        }
                     } else if settings.netMode == "dstar" {
                         NavigationLink {
                             ReflectorPickerView()
@@ -636,7 +747,12 @@ struct SettingsView: View {
                 } header: {
                     SectionLabel("Master")
                 } footer: {
-                    if settings.netMode == "dstar" {
+                    if settings.netMode == "allstar" {
+                        Text("The AllStar node to link to. Addresses come from "
+                            + "AllStarLink's DNS at connect time.")
+                            .font(CW.mono(11))
+                            .foregroundStyle(CW.dim)
+                    } else if settings.netMode == "dstar" {
                         Text("An XLX or XRF reflector, DExtra port 30001. "
                             + "Module is the letter to link.")
                             .font(CW.mono(11))
@@ -649,52 +765,14 @@ struct SettingsView: View {
                             .foregroundStyle(CW.dim)
                     }
                 }
-                Section {
-                    if settings.netMode == "dstar" {
-                        TextField("Callsign", text: settings.$callsign)
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                            .font(CW.mono(14))
-                    } else {
-                        TextField("DMR ID", text: settings.$dmrID)
-                            .keyboardType(.numberPad)
-                            .font(CW.mono(14))
-                        SecureField("Hotspot password", text: settings.$password)
-                    }
-                    if settings.netMode == "homebrew" {
-                        TextField("Callsign", text: settings.$callsign)
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                            .font(CW.mono(14))
-                        TextField("Hotspot suffix", text: settings.$suffix)
-                            .keyboardType(.numberPad)
-                            .font(CW.mono(14))
-                        TextField("Location", text: settings.$location)
-                    }
-                } header: {
-                    SectionLabel("Station")
-                }
+                StationSection()
                 Section {
                     NavigationLink("Callsign notes") { CallNotesView() }
                     NavigationLink("Nets") { NetsView() }
                 } header: {
                     SectionLabel("Data")
                 }
-                Section {
-                    TextField("QRZ username", text: settings.$qrzUser)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .font(CW.mono(14))
-                        .onChange(of: settings.qrzUser) { model.applyQRZ(settings) }
-                    SecureField("QRZ password", text: settings.$qrzPassword)
-                        .onChange(of: settings.qrzPassword) { model.applyQRZ(settings) }
-                } header: {
-                    SectionLabel("QRZ")
-                } footer: {
-                    Text("Used to place stations on the map. A QRZ subscription is required for coordinates.")
-                        .font(CW.mono(11))
-                        .foregroundStyle(CW.dim)
-                }
+                QRZSection()
                 BuddySettingsSection()
                 TxMonitorSection()
                 Section {
@@ -754,7 +832,10 @@ struct SettingsView: View {
                 }
             }
             .cwList()
-            .onAppear { probeSelected() }
+            .onAppear {
+                probeSelected()
+                if settings.netMode == "allstar" { ASLDirectory.shared.loadIfNeeded() }
+            }
             .onChange(of: settings.host) { _, _ in probeSelected() }
             .onChange(of: settings.otpPort) { _, _ in probeSelected() }
             .onChange(of: settings.dstarHost) { _, _ in probeSelected() }

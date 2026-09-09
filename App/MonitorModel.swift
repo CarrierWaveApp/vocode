@@ -43,27 +43,31 @@ final class MonitorModel: ObservableObject {
     @Published var transmitting = false
     @Published var txBursts: [TXBurst] = []
 
-    private var mic: MicCapture?
+    var mic: MicCapture?
     private var txBatcher: TxBatcher?
     let txMonitor = TxMonitor()
     var monitorOut: AudioOutput?
     var lastHistorySeed = Date.distantPast
     var historyFeed: BrandmeisterLH?
     private var txDst: UInt32 = 0
-    private var txPending = false
+    var txPending = false
 
     private var client: HomebrewClient?
     private var rewind: RewindClient?
-    private var dstarClient: DExtraClient?
+    var dstarClient: DExtraClient?
+    var iaxClient: IAXClient?
+    // Invalidates an in-flight AllStar DNS resolution on disconnect/reconnect
+    var iaxConnectToken = UUID()
+    var allstarStream: UInt32 = 0xA500_0000
     private var scout: MasterScout?
-    private let pipeline = DecodePipeline()
+    let pipeline = DecodePipeline()
     private let lookup = CallsignLookup()
     let qrz = QRZLookup()
     // BM map overlay; independent of the DMR link on purpose, so the map
     // works while disconnected — disconnect() must not touch it
     let overlay: OverlayModel
     let notes: CallNotesStore
-    private let maxHeard = 200
+    let maxHeard = 200
     private let maxLog = 300
 
     var isConnected: Bool { link == .running }
@@ -89,6 +93,8 @@ final class MonitorModel: ObservableObject {
             connectHomebrew(settings)
         } else if settings.netMode == "dstar" {
             connectDStar(settings)
+        } else if settings.netMode == "allstar" {
+            connectAllStar(settings)
         } else if settings.autoMaster {
             findMasterThenConnect(settings)
         } else {
@@ -124,7 +130,7 @@ final class MonitorModel: ObservableObject {
         }
     }
 
-    private func startAudio() {
+    func startAudio() {
         do {
             try pipeline.startAudio()
             audioError = nil
@@ -152,59 +158,6 @@ final class MonitorModel: ObservableObject {
         }
         client = c
         c.connect()
-    }
-
-    private func connectDStar(_ settings: Settings) {
-        guard let cfg = settings.dextraConfig else {
-            link = .failed("check settings")
-            return
-        }
-        startAudio()
-        let reflector = cfg.host.split(separator: ".").first.map(String.init)?.uppercased() ?? cfg.host
-        let channelLabel = "\(reflector) \(cfg.module)"
-        let dextra = DExtraClient(config: cfg)
-        dextra.onState = { [weak self] newState in
-            Task { @MainActor in self?.link = newState }
-        }
-        dextra.onLog = { [weak self] line, isError in
-            Task { @MainActor in self?.appendLog(line, error: isError) }
-        }
-        dextra.onCallStart = { [weak self] streamID, myCall, _ in
-            self?.pipeline.resetDecoder()
-            Task { @MainActor in self?.openDStarCall(id: streamID, callsign: myCall, channel: channelLabel) }
-        }
-        dextra.onAmbe = { [weak self] ambe in
-            self?.pipeline.submitDStar(ambe)
-        }
-        dextra.onCallEnd = { [weak self] streamID in
-            Task { @MainActor in self?.closeCall(streamID) }
-        }
-        dstarClient = dextra
-        dextra.connect()
-    }
-
-    private func openDStarCall(id: UInt32, callsign call: String, channel: String) {
-        for index in heard.indices where heard[index].isActive {
-            heard[index].ended = Date()
-        }
-        var entry = HeardEntry(id: id, src: Self.dstarSrc(call), dst: 0, slot: 0, started: Date())
-        entry.callsign = call
-        entry.note = notes.note(for: call)
-        entry.channel = channel
-        entry.dstar = true
-        heard.insert(entry, at: 0)
-        if heard.count > maxHeard { heard.removeLast() }
-        Task { await geocode(streamID: id, callsign: call) }
-    }
-
-    // Stable pseudo-ID so timeline lanes key by station; the high bit keeps
-    // it clear of real 7-digit DMR IDs and the self-lane sentinel 0
-    private static func dstarSrc(_ call: String) -> UInt32 {
-        var hash: UInt32 = 2_166_136_261
-        for byte in call.utf8 {
-            hash = (hash ^ UInt32(byte)) &* 16_777_619
-        }
-        return hash | 0x8000_0000
     }
 
     private func connectRewind(_ settings: Settings) {
@@ -241,7 +194,9 @@ final class MonitorModel: ObservableObject {
 
     func disconnect() {
         if transmitting { endTransmit() }
-        if client != nil || rewind != nil || dstarClient != nil { appendLog("disconnected") }
+        if client != nil || rewind != nil || dstarClient != nil || iaxClient != nil {
+            appendLog("disconnected")
+        }
         scout?.cancelAll()
         scout = nil
         client?.disconnect()
@@ -250,6 +205,9 @@ final class MonitorModel: ObservableObject {
         rewind = nil
         dstarClient?.disconnect()
         dstarClient = nil
+        iaxConnectToken = UUID()
+        iaxClient?.disconnect()
+        iaxClient = nil
         otpSubscribed = []
         pipeline.stopAudio()
         link = .idle
@@ -291,6 +249,10 @@ final class MonitorModel: ObservableObject {
     // MARK: - Transmit
 
     func beginTransmit(_ settings: Settings) {
+        if iaxClient != nil {
+            beginAllStarTransmit(settings)
+            return
+        }
         guard !transmitting, !txPending, rewind != nil, isConnected,
               let target = settings.txTarget, target.listen == .live else { return }
         txPending = true
@@ -346,7 +308,11 @@ final class MonitorModel: ObservableObject {
         mic?.stop()
         mic = nil
         txBatcher = nil
-        rewind?.endTransmit(dst: txDst)
+        if let iaxClient {
+            iaxClient.endTransmit()
+        } else {
+            rewind?.endTransmit(dst: txDst)
+        }
         transmitting = false
         if let index = txBursts.firstIndex(where: { $0.ended == nil }) {
             txBursts[index].ended = Date()
@@ -383,7 +349,7 @@ final class MonitorModel: ObservableObject {
 
     // QRZ geocoding lives in MonitorModel+Geo.swift
 
-    private func closeCall(_ stream: UInt32) {
+    func closeCall(_ stream: UInt32) {
         if let i = heard.firstIndex(where: { $0.id == stream }) {
             heard[i].ended = Date()
         }

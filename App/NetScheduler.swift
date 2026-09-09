@@ -99,7 +99,8 @@ enum NetScheduler {
 @MainActor
 enum NetJoin {
     static func join(talkgroup: UInt32, name: String, settings: Settings, model: MonitorModel) {
-        guard talkgroup > 0, settings.netMode != "dstar" else { return }
+        guard talkgroup > 0, settings.netMode != "dstar",
+              settings.netMode != "allstar" else { return }
         if !settings.talkgroupList.contains(where: { $0.tg == talkgroup }) {
             // .off first: setListen bails on a TG it can't find
             settings.talkgroupList.append(Talkgroup(tg: talkgroup, name: name, listen: .off))

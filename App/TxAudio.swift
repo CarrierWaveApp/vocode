@@ -29,6 +29,8 @@ struct TXBurst: Identifiable, Equatable {
     let dst: UInt32
     let started: Date
     var ended: Date?
+    // AllStar: the linked node label, shown where DMR shows the talkgroup
+    var channel: String?
 }
 
 // Speech conditioning for the vocoder

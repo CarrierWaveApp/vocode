@@ -43,6 +43,13 @@ final class DecodePipeline {
         }
     }
 
+    // AllStar path: already-decoded 8 kHz PCM, no vocoder involved
+    func submitPCM(_ pcm: [Float]) {
+        queue.async { [self] in
+            audio.play(pcm)
+        }
+    }
+
     func resetDecoder() {
         queue.async { [self] in decoder.reset() }
     }
