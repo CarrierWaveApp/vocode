@@ -23,9 +23,15 @@ final class AMBEEncoder {
     }
 }
 
-// Speech conditioning for the vocoder: one-pole ~100 Hz high-pass to
-// shed rumble, then a slow AGC toward -6 dBFS with a hard limiter.
-// AMBE spends its bits on voiced harmonics — it wants hot, clean speech.
+// One of our own transmissions, for the activity timeline
+struct TXBurst: Identifiable, Equatable {
+    let id = UUID()
+    let dst: UInt32
+    let started: Date
+    var ended: Date?
+}
+
+// Speech conditioning for the vocoder
 struct MicConditioner {
     private var hpPrevIn: Float = 0
     private var hpPrevOut: Float = 0

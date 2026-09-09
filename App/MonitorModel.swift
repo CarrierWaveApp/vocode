@@ -29,14 +29,6 @@ struct LogEntry: Identifiable {
     let isError: Bool
 }
 
-// One of our own transmissions, for the activity timeline
-struct TXBurst: Identifiable, Equatable {
-    let id = UUID()
-    let dst: UInt32
-    let started: Date
-    var ended: Date?
-}
-
 @MainActor
 final class MonitorModel: ObservableObject {
     @Published var link: LinkState = .idle
@@ -55,6 +47,8 @@ final class MonitorModel: ObservableObject {
     private var txBatcher: TxBatcher?
     let txMonitor = TxMonitor()
     var monitorOut: AudioOutput?
+    var lastHistorySeed = Date.distantPast
+    var historyFeed: BrandmeisterLH?
     private var txDst: UInt32 = 0
     private var txPending = false
 
@@ -68,7 +62,7 @@ final class MonitorModel: ObservableObject {
     // BM map overlay; independent of the DMR link on purpose, so the map
     // works while disconnected — disconnect() must not touch it
     let overlay: OverlayModel
-    private let notes: CallNotesStore
+    let notes: CallNotesStore
     private let maxHeard = 200
     private let maxLog = 300
 
@@ -102,6 +96,7 @@ final class MonitorModel: ObservableObject {
         }
         Task { await notes.refreshStale() }
         applyQRZ(settings)
+        refreshHistory(settings)
     }
 
     // Probe every BrandMeister master, point the host at the fastest one,

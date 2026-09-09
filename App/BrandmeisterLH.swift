@@ -8,6 +8,8 @@ struct BMCall: Equatable {
     let sourceName: String?
     let destinationID: UInt32
     let active: Bool
+    // Session start; equals `time` when the payload carried no Start
+    let began: Date
     let time: Date
 }
 
@@ -241,13 +243,15 @@ final class BrandmeisterLH {
         let name = (call["SourceName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         // Server timestamps, so backlog rows carry their real age
         let stamp = stopTime > 0 ? stopTime : startTime
+        let time = stamp > 0 ? Date(timeIntervalSince1970: TimeInterval(stamp)) : Date()
         pending.append(BMCall(
             sourceID: src,
             sourceCall: sourceCall.uppercased(),
             sourceName: name,
             destinationID: dst,
             active: event != "Session-Stop" && stopTime == 0,
-            time: stamp > 0 ? Date(timeIntervalSince1970: TimeInterval(stamp)) : Date()
+            began: startTime > 0 ? Date(timeIntervalSince1970: TimeInterval(startTime)) : time,
+            time: time
         ))
     }
 

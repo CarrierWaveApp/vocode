@@ -143,7 +143,10 @@ struct ContentView: View {
             }
         }
         .environmentObject(buddyClient)
-        .task { buddyClient.startup(settings) }
+        .task {
+            buddyClient.startup(settings)
+            model.refreshHistory(settings)
+        }
         .preferredColorScheme(.dark)
     }
 
