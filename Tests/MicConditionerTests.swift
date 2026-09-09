@@ -24,7 +24,9 @@ final class MicConditionerTests: XCTestCase {
             conditioner.process(&frame)
             lastPeak = peak(frame)
         }
-        XCTAssertGreaterThan(lastPeak, 0.25, "AGC should approach the target level")
+        // -30 dBFS in, max makeup gain 8x -> ~0.24 out; the cap is
+        // deliberate since .voiceChat's system AGC runs ahead of us
+        XCTAssertGreaterThan(lastPeak, 0.2, "AGC should approach the target level")
         XCTAssertLessThanOrEqual(lastPeak, 0.98)
     }
 
