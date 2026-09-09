@@ -34,7 +34,8 @@ extension MonitorModel {
 
     private func seedHistory(_ history: [BMCall]) {
         guard !history.isEmpty else { return }
-        var counter: UInt32 = 0xF000_0000 | UInt32(Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 100_000))
+        let stamp = Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 100_000)
+        var counter: UInt32 = 0xF000_0000 | UInt32(stamp)
         var list = heard
         var added = 0
         for call in history {
