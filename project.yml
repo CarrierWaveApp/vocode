@@ -33,6 +33,7 @@ targets:
       path: App/Info.plist
       properties:
         UILaunchScreen: {}
+        CFBundleDisplayName: "Carrier Wave: Vocode"
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSMicrophoneUsageDescription: Voice transmit to your selected DMR talkgroup.
@@ -51,7 +52,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 7UE4RDLUSX
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CURRENT_PROJECT_VERSION: 5
+        CURRENT_PROJECT_VERSION: 6
         MARKETING_VERSION: "0.3.2"
   DMRMonitorTests:
     type: bundle.unit-test

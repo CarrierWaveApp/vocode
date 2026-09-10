@@ -99,7 +99,7 @@ struct ContentView: View {
                     TalkBarHost()
                 }
             }
-            .navigationTitle("DMR Monitor")
+            .navigationTitle("Vocode")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
