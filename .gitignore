@@ -2,3 +2,4 @@
 DMRMonitor.xcodeproj/
 build/
 App/DMRMonitor.entitlements
+.build/
