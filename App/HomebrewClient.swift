@@ -2,6 +2,8 @@ import CryptoKit
 import Foundation
 import Network
 
+// MARK: - HomebrewConfig
+
 struct HomebrewConfig {
     var host: String
     var port: UInt16
@@ -14,6 +16,8 @@ struct HomebrewConfig {
     var location: String = ""
 }
 
+// MARK: - LinkState
+
 enum LinkState: Equatable {
     case idle
     case connecting
@@ -24,40 +28,41 @@ enum LinkState: Equatable {
     case running
     case failed(String)
 
+    // MARK: Internal
+
     var label: String {
         switch self {
-        case .idle: return "Disconnected"
-        case .connecting: return "Connecting"
-        case .login: return "Logging in"
-        case .authorising: return "Authorising"
-        case .configuring: return "Sending config"
-        case .options: return "Sending options"
-        case .running: return "Connected"
-        case let .failed(why): return "Failed: \(why)"
+        case .idle: "Disconnected"
+        case .connecting: "Connecting"
+        case .login: "Logging in"
+        case .authorising: "Authorising"
+        case .configuring: "Sending config"
+        case .options: "Sending options"
+        case .running: "Connected"
+        case let .failed(why): "Failed: \(why)"
         }
     }
 }
 
+// MARK: - HomebrewClient
+
 /// Speaks the MMDVM homebrew repeater protocol
 final class HomebrewClient {
-    private let config: HomebrewConfig
-    private let queue = DispatchQueue(label: "homebrew.net")
-    private var conn: NWConnection?
-    private var pingTimer: DispatchSourceTimer?
-    private var watchdog: DispatchWorkItem?
-    private var idBytes: [UInt8]
+    // MARK: Lifecycle
 
-    private(set) var state: LinkState = .idle {
-        didSet { onState?(state) }
+    init(config: HomebrewConfig) {
+        self.config = config
+        idBytes = withUnsafeBytes(of: config.repeaterID.bigEndian, Array.init)
     }
+
+    // MARK: Internal
 
     var onState: ((LinkState) -> Void)?
     var onPacket: ((DMRDPacket) -> Void)?
     var onLog: ((String, Bool) -> Void)?
 
-    init(config: HomebrewConfig) {
-        self.config = config
-        idBytes = withUnsafeBytes(of: config.repeaterID.bigEndian, Array.init)
+    private(set) var state: LinkState = .idle {
+        didSet { onState?(state) }
     }
 
     func connect() {
@@ -67,48 +72,61 @@ final class HomebrewClient {
         }
         state = .connecting
         log("connecting to \(config.host):\(config.port)")
-        let c = NWConnection(host: NWEndpoint.Host(config.host), port: port, using: .udp)
-        conn = c
-        c.stateUpdateHandler = { [weak self] st in
-            guard let self else { return }
+        let connection = NWConnection(host: NWEndpoint.Host(config.host), port: port, using: .udp)
+        conn = connection
+        connection.stateUpdateHandler = { [weak self] st in
+            guard let self else {
+                return
+            }
             switch st {
             case .ready:
-                self.log("udp socket ready")
-                self.sendLogin()
-                self.receiveLoop()
+                log("udp socket ready")
+                sendLogin()
+                receiveLoop()
             case let .failed(err):
-                self.fail(err.localizedDescription)
+                fail(err.localizedDescription)
             case .cancelled:
-                self.state = .idle
+                state = .idle
             default:
                 break
             }
         }
-        c.start(queue: queue)
+        connection.start(queue: queue)
     }
 
     func disconnect() {
         queue.async { [weak self] in
-            guard let self else { return }
-            self.pingTimer?.cancel()
-            self.pingTimer = nil
-            self.watchdog?.cancel()
-            if self.state == .running {
-                self.log("→ RPTCL closing link")
-                self.send("RPTCL", self.idBytes)
+            guard let self else {
+                return
             }
-            self.conn?.cancel()
-            self.conn = nil
-            self.state = .idle
+            pingTimer?.cancel()
+            pingTimer = nil
+            watchdog?.cancel()
+            if state == .running {
+                log("→ RPTCL closing link")
+                send("RPTCL", idBytes)
+            }
+            conn?.cancel()
+            conn = nil
+            state = .idle
         }
     }
+
+    // MARK: Private
+
+    private let config: HomebrewConfig
+    private let queue = DispatchQueue(label: "homebrew.net")
+    private var conn: NWConnection?
+    private var pingTimer: DispatchSourceTimer?
+    private var watchdog: DispatchWorkItem?
+    private var idBytes: [UInt8]
 
     // MARK: - Outbound
 
     private func send(_ tag: String, _ body: [UInt8]) {
-        var d = Data(tag.utf8)
-        d.append(contentsOf: body)
-        conn?.send(content: d, completion: .contentProcessed { _ in })
+        var packet = Data(tag.utf8)
+        packet.append(contentsOf: body)
+        conn?.send(content: packet, completion: .contentProcessed { _ in })
     }
 
     private func sendLogin() {
@@ -162,29 +180,33 @@ final class HomebrewClient {
     }
 
     private func startPing() {
-        let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now() + 5, repeating: 5)
-        t.setEventHandler { [weak self] in self?.sendPing() }
-        t.resume()
-        pingTimer = t
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 5, repeating: 5)
+        timer.setEventHandler { [weak self] in self?.sendPing() }
+        timer.resume()
+        pingTimer = timer
     }
 
     // MARK: - Inbound
 
     private func receiveLoop() {
         conn?.receiveMessage { [weak self] data, _, _, error in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             if let data {
-                self.handle(data)
+                handle(data)
             }
             if error == nil {
-                self.receiveLoop()
+                receiveLoop()
             }
         }
     }
 
     private func handle(_ data: Data) {
-        guard data.count >= 4 else { return }
+        guard data.count >= 4 else {
+            return
+        }
         let b = [UInt8](data)
 
         if hasPrefix(b, "DMRD") {
@@ -214,7 +236,9 @@ final class HomebrewClient {
     private func advance(ack: [UInt8]) {
         switch state {
         case .login:
-            guard ack.count >= 10 else { return fail("short ack") }
+            guard ack.count >= 10 else {
+                return fail("short ack")
+            }
             sendAuth(salt: Array(ack[6 ..< 10]))
         case .authorising:
             sendConfig()
@@ -241,11 +265,11 @@ final class HomebrewClient {
 
     private func armWatchdog() {
         watchdog?.cancel()
-        let w = DispatchWorkItem { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             self?.fail("no reply from master")
         }
-        watchdog = w
-        queue.asyncAfter(deadline: .now() + 6, execute: w)
+        watchdog = workItem
+        queue.asyncAfter(deadline: .now() + 6, execute: workItem)
     }
 
     private func fail(_ why: String) {
@@ -258,17 +282,17 @@ final class HomebrewClient {
         state = .failed(why)
     }
 
-    private func log(_ s: String, error: Bool = false) {
-        onLog?(s, error)
+    private func log(_ message: String, error: Bool = false) {
+        onLog?(message, error)
     }
 
     private func hasPrefix(_ b: [UInt8], _ tag: String) -> Bool {
-        let t = Array(tag.utf8)
-        return b.count >= t.count && Array(b[0 ..< t.count]) == t
+        let tagBytes = Array(tag.utf8)
+        return b.count >= tagBytes.count && Array(b[0 ..< tagBytes.count]) == tagBytes
     }
 
-    private func pad(_ s: String, _ n: Int) -> String {
-        let cut = String(s.prefix(n))
+    private func pad(_ string: String, _ n: Int) -> String {
+        let cut = String(string.prefix(n))
         return cut + String(repeating: " ", count: n - cut.count)
     }
 }

@@ -1,16 +1,15 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - NetsView
+
 /// Full nets list: add/edit/delete, enable toggles, share/import, and the
 /// reminder budget footer (iOS keeps only the 64 soonest requests).
 struct NetsView: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
-    @State private var scheduled = 0
-    @State private var trimmed = 0
-    @State private var importing = false
-    @State private var importResult: String?
-    @State private var permissionDenied = false
 
     var body: some View {
         Form {
@@ -94,10 +93,32 @@ struct NetsView: View {
             importNets(result)
         }
         .task {
-            permissionDenied = !(await PushManager.shared.requestAuthorization())
+            permissionDenied = await !(PushManager.shared.requestAuthorization())
             refreshSchedule()
         }
         .onDisappear { refreshSchedule() }
+    }
+
+    // MARK: Private
+
+    /// Community net directory (scraped from dvnets.com, see the
+    /// dmr-lookout repo); an update is a re-fetch — merge is by net id
+    private static let directoryURL = URL(
+        string: "https://raw.githubusercontent.com/jsvana/dmr-lookout/main/nets/dmr-nets.json"
+    )!
+
+    @State private var scheduled = 0
+    @State private var trimmed = 0
+    @State private var importing = false
+    @State private var importResult: String?
+    @State private var permissionDenied = false
+
+    private var footerText: String {
+        var text = "\(scheduled) / \(NetScheduler.maxRequests) reminders scheduled."
+        if trimmed > 0 {
+            text += " \(trimmed) trimmed — too many nets × reminders."
+        }
+        return text
     }
 
     private func row(_ net: Net) -> some View {
@@ -140,14 +161,6 @@ struct NetsView: View {
         net.timeZone.abbreviation() ?? net.timeZoneID
     }
 
-    private var footerText: String {
-        var text = "\(scheduled) / \(NetScheduler.maxRequests) reminders scheduled."
-        if trimmed > 0 {
-            text += " \(trimmed) trimmed — too many nets × reminders."
-        }
-        return text
-    }
-
     private func refreshSchedule() {
         Task {
             let result = await NetScheduler.reschedule(
@@ -157,12 +170,6 @@ struct NetsView: View {
             trimmed = result.1
         }
     }
-
-    /// Community net directory (scraped from dvnets.com, see the
-    /// dmr-lookout repo); an update is a re-fetch — merge is by net id
-    private static let directoryURL = URL(
-        string: "https://raw.githubusercontent.com/jsvana/dmr-lookout/main/nets/dmr-nets.json"
-    )!
 
     private func fetchDirectory() {
         importResult = "fetching…"
@@ -177,8 +184,12 @@ struct NetsView: View {
     }
 
     private func importNets(_ result: Result<URL, Error>) {
-        guard case let .success(url) = result else { return }
-        guard url.startAccessingSecurityScopedResource() else { return }
+        guard case let .success(url) = result else {
+            return
+        }
+        guard url.startAccessingSecurityScopedResource() else {
+            return
+        }
         defer { url.stopAccessingSecurityScopedResource() }
         guard let data = try? Data(contentsOf: url) else {
             importResult = "couldn't read file"
@@ -222,14 +233,16 @@ struct NetsView: View {
     }
 }
 
+// MARK: - NetsExport
+
 /// JSON export via the share sheet, no temp files
 struct NetsExport: Transferable {
-    let nets: [Net]
-
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(exportedContentType: .json) { export in
             try JSONEncoder().encode(NetsFile(version: 1, nets: export.nets))
         }
         .suggestedFileName("dmr-nets.json")
     }
+
+    let nets: [Net]
 }

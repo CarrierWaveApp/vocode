@@ -1,6 +1,8 @@
 import Combine
 import Foundation
 
+// MARK: - BMStation
+
 /// A station seen on the BrandMeister last-heard overlay
 struct BMStation: Equatable {
     let dmrID: UInt32
@@ -13,26 +15,24 @@ struct BMStation: Equatable {
     var geoSource: GeoSource?
 }
 
+// MARK: - OverlayModel
+
 /// Owns the BM last-heard socket and the overlay station set. Lives on
 /// MonitorModel so pins survive popping the map, but the socket only runs
 /// while the map is on screen (the raw stream is all of BrandMeister).
 @MainActor
 final class OverlayModel: ObservableObject {
-    @Published private(set) var stations: [UInt32: BMStation] = [:]
-    @Published private(set) var state: LinkState = .idle
-    var log: ((String, Bool) -> Void)?
-
-    private let qrz: QRZLookup
-    private var client: BrandmeisterLH?
-    private var geocodeTried: Set<String> = []
-    private let maxStations = 300
-    private let stationTTL: TimeInterval = 15 * 60
-    /// Force-clear "on air" when a Session-Stop never arrives
-    private let activeTimeout: TimeInterval = 300
+    // MARK: Lifecycle
 
     init(qrz: QRZLookup) {
         self.qrz = qrz
     }
+
+    // MARK: Internal
+
+    @Published private(set) var stations: [UInt32: BMStation] = [:]
+    @Published private(set) var state: LinkState = .idle
+    var log: ((String, Bool) -> Void)?
 
     var isRunning: Bool {
         client != nil
@@ -53,7 +53,9 @@ final class OverlayModel: ObservableObject {
         // new client's state
         feed.onState = { [weak self, weak feed] newState in
             Task { @MainActor in
-                guard let self, self.client === feed else { return }
+                guard let self, self.client === feed else {
+                    return
+                }
                 self.state = newState
             }
         }
@@ -62,7 +64,9 @@ final class OverlayModel: ObservableObject {
         }
         feed.onCalls = { [weak self, weak feed] calls in
             Task { @MainActor in
-                guard let self, self.client === feed else { return }
+                guard let self, self.client === feed else {
+                    return
+                }
                 self.apply(calls)
             }
         }
@@ -98,6 +102,16 @@ final class OverlayModel: ObservableObject {
         }
     }
 
+    // MARK: Private
+
+    private let qrz: QRZLookup
+    private var client: BrandmeisterLH?
+    private var geocodeTried: Set<String> = []
+    private let maxStations = 300
+    private let stationTTL: TimeInterval = 15 * 60
+    /// Force-clear "on air" when a Session-Stop never arrives
+    private let activeTimeout: TimeInterval = 300
+
     private func apply(_ calls: [BMCall]) {
         for call in calls {
             var station = stations[call.sourceID] ?? BMStation(
@@ -125,11 +139,16 @@ final class OverlayModel: ObservableObject {
 
     /// One QRZ attempt per callsign per app session
     private func geocode(_ station: BMStation) {
-        guard geocodeTried.insert(station.callsign).inserted else { return }
+        guard geocodeTried.insert(station.callsign).inserted else {
+            return
+        }
         Task {
             guard await qrz.isConfigured,
                   let info = await qrz.station(for: station.callsign),
-                  let point = info.bestPoint else { return }
+                  let point = info.bestPoint
+            else {
+                return
+            }
             stations[station.dmrID]?.point = point
             stations[station.dmrID]?.geoSource = info.source
         }
@@ -138,7 +157,9 @@ final class OverlayModel: ObservableObject {
     private func evict() {
         while stations.count > maxStations {
             guard let oldest = stations.min(by: { $0.value.lastHeard < $1.value.lastHeard })
-            else { return }
+            else {
+                return
+            }
             stations.removeValue(forKey: oldest.key)
         }
     }

@@ -9,6 +9,23 @@ import Foundation
 /// The placement tables (dW/dX upstream) come from DSD's dstar_const.h (ISC license,
 /// same provenance as the DMR tables in DMRFrame.swift).
 enum DStarFrame {
+    // MARK: Internal
+
+    /// 9 network bytes → 96 cells ([4][24] flattened) for the decode shim
+    static func cells(from ambe: [UInt8]) -> [CChar] {
+        var cells = [CChar](repeating: 0, count: 96)
+        guard ambe.count >= 9 else {
+            return cells
+        }
+        for bit in 0 ..< 72 {
+            let value = (ambe[bit / 8] >> (bit % 8)) & 1
+            cells[rowTable[bit] * 24 + colTable[bit]] = CChar(value)
+        }
+        return cells
+    }
+
+    // MARK: Private
+
     private static let rowTable: [Int] = [
         0, 0, 3, 2, 1, 1, 0, 0, 1, 1, 0, 0,
         3, 2, 1, 1, 3, 2, 1, 1, 0, 0, 3, 2,
@@ -26,15 +43,4 @@ enum DStarFrame {
         2, 14, 3, 1, 2, 14, 3, 15, 0, 12, 1, 13,
         2, 0, 1, 13, 0, 12, 10, 11, 0, 12, 1, 13,
     ]
-
-    /// 9 network bytes → 96 cells ([4][24] flattened) for the decode shim
-    static func cells(from ambe: [UInt8]) -> [CChar] {
-        var cells = [CChar](repeating: 0, count: 96)
-        guard ambe.count >= 9 else { return cells }
-        for bit in 0 ..< 72 {
-            let value = (ambe[bit / 8] >> (bit % 8)) & 1
-            cells[rowTable[bit] * 24 + colTable[bit]] = CChar(value)
-        }
-        return cells
-    }
 }

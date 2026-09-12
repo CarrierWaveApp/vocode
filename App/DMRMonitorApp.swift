@@ -2,16 +2,15 @@ import SwiftUI
 
 @main
 struct DMRMonitorApp: App {
-    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
-    @StateObject private var model: MonitorModel
-    @StateObject private var settings = Settings()
-    @StateObject private var notes: CallNotesStore
+    // MARK: Lifecycle
 
     init() {
         let store = CallNotesStore()
         _notes = StateObject(wrappedValue: store)
         _model = StateObject(wrappedValue: MonitorModel(notes: store))
     }
+
+    // MARK: Internal
 
     var body: some Scene {
         WindowGroup {
@@ -24,4 +23,11 @@ struct DMRMonitorApp: App {
                 .environmentObject(notes)
         }
     }
+
+    // MARK: Private
+
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
+    @StateObject private var model: MonitorModel
+    @StateObject private var settings = Settings()
+    @StateObject private var notes: CallNotesStore
 }

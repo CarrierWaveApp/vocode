@@ -2,26 +2,38 @@ import AVFoundation
 import CMBELib
 import Foundation
 
+// MARK: - AMBEEncoder
+
 /// Wraps OP25's software AMBE+2 encoder (GPL v3, vendored in Packages/AMBE)
 final class AMBEEncoder {
-    private let enc: OpaquePointer
+    // MARK: Lifecycle
 
     init?() {
-        guard let e = ambe_enc_create() else { return nil }
+        guard let e = ambe_enc_create() else {
+            return nil
+        }
         enc = e
     }
 
     deinit { ambe_enc_destroy(enc) }
 
+    // MARK: Internal
+
     /// 160 samples of 8 kHz S16 → 96-cell mbelib-layout frame
     func encode(_ pcm: [Int16]) -> [CChar] {
         var cells = [CChar](repeating: 0, count: 96)
-        pcm.withUnsafeBufferPointer { p in
-            ambe_enc_frame(enc, p.baseAddress, &cells)
+        pcm.withUnsafeBufferPointer { pcmPointer in
+            ambe_enc_frame(enc, pcmPointer.baseAddress, &cells)
         }
         return cells
     }
+
+    // MARK: Private
+
+    private let enc: OpaquePointer
 }
+
+// MARK: - TXBurst
 
 /// One of our own transmissions, for the activity timeline
 struct TXBurst: Identifiable, Equatable {
@@ -33,18 +45,11 @@ struct TXBurst: Identifiable, Equatable {
     var channel: String?
 }
 
+// MARK: - MicConditioner
+
 /// Speech conditioning for the vocoder
 struct MicConditioner {
-    private var hpPrevIn: Float = 0
-    private var hpPrevOut: Float = 0
-
-    // Deliberately minimal while TX distortion is being bisected: a
-    // ~100 Hz one-pole high-pass, a FIXED 2x makeup gain (the .voiceChat
-    // system AGC handles dynamics), and a soft knee. The earlier dynamic
-    // AGC modulated gain at audio rate, which is itself distortion.
-    private let hpCoeff: Float = 0.9245
-    private let fixedGain: Float = 2.0
-    private let softKnee: Float = 0.6
+    // MARK: Internal
 
     mutating func reset() {
         self = MicConditioner()
@@ -52,7 +57,7 @@ struct MicConditioner {
 
     mutating func process(_ frame: inout [Int16]) {
         for index in frame.indices {
-            let sample = Float(frame[index]) / 32768
+            let sample = Float(frame[index]) / 32_768
             let highPassed = hpCoeff * (hpPrevOut + sample - hpPrevIn)
             hpPrevIn = sample
             hpPrevOut = highPassed
@@ -64,19 +69,42 @@ struct MicConditioner {
                 let squashed = softKnee + over / (1 + over * 4)
                 shaped = shaped < 0 ? -squashed : squashed
             }
-            frame[index] = Int16(max(-0.98, min(0.98, shaped)) * 32767)
+            frame[index] = Int16(max(-0.98, min(0.98, shaped)) * 32_767)
         }
     }
+
+    // MARK: Private
+
+    private var hpPrevIn: Float = 0
+    private var hpPrevOut: Float = 0
+
+    // Deliberately minimal while TX distortion is being bisected: a
+    // ~100 Hz one-pole high-pass, a FIXED 2x makeup gain (the .voiceChat
+    // system AGC handles dynamics), and a soft knee. The earlier dynamic
+    // AGC modulated gain at audio rate, which is itself distortion.
+    private let hpCoeff: Float = 0.9245
+    private let fixedGain: Float = 2.0
+    private let softKnee: Float = 0.6
 }
+
+// MARK: - TxMonitor
 
 /// Captures the encoded->decoded copy of a transmission so the operator
 /// can hear exactly what the network hears
 final class TxMonitor {
-    private let lock = NSLock()
-    private let decoder = AMBEDecoder()
-    private var samples: [Float] = []
-    private var micSamples: [Float] = []
-    private let maxSamples = 8000 * 30
+    // MARK: Internal
+
+    var audio: [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        return samples
+    }
+
+    var micAudio: [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        return micSamples
+    }
 
     func reset() {
         lock.lock()
@@ -101,43 +129,43 @@ final class TxMonitor {
     func appendMic(_ frame: [Int16]) {
         lock.lock()
         if micSamples.count < maxSamples {
-            micSamples.append(contentsOf: frame.map { Float($0) / 32768 })
+            micSamples.append(contentsOf: frame.map { Float($0) / 32_768 })
         }
         lock.unlock()
     }
 
-    var audio: [Float] {
-        lock.lock()
-        defer { lock.unlock() }
-        return samples
-    }
+    // MARK: Private
 
-    var micAudio: [Float] {
-        lock.lock()
-        defer { lock.unlock() }
-        return micSamples
-    }
+    private let lock = NSLock()
+    private let decoder = AMBEDecoder()
+    private var samples: [Float] = []
+    private var micSamples: [Float] = []
+    private let maxSamples = 8_000 * 30
 }
+
+// MARK: - TxBatcher
 
 /// Encodes mic frames off the main actor and batches three 9-byte on-air
 /// frames (60 ms) per network packet
 final class TxBatcher {
-    private let queue = DispatchQueue(label: "dmr.tx")
-    private let encoder: AMBEEncoder
-    private let send: ([UInt8]) -> Void
-    private var frames: [[UInt8]] = []
-    var monitor: TxMonitor?
+    // MARK: Lifecycle
 
     init(encoder: AMBEEncoder, send: @escaping ([UInt8]) -> Void) {
         self.encoder = encoder
         self.send = send
     }
 
+    // MARK: Internal
+
+    var monitor: TxMonitor?
+
     func submit(_ pcm: [Int16]) {
         queue.async { [self] in
             let cells = encoder.encode(pcm)
             monitor?.append(cells: cells)
-            guard let frame = VoiceBurst.packFrame(cells) else { return }
+            guard let frame = VoiceBurst.packFrame(cells) else {
+                return
+            }
             frames.append(frame)
             if frames.count >= 3 {
                 let payload = frames[0] + frames[1] + frames[2]
@@ -146,25 +174,20 @@ final class TxBatcher {
             }
         }
     }
+
+    // MARK: Private
+
+    private let queue = DispatchQueue(label: "dmr.tx")
+    private let encoder: AMBEEncoder
+    private let send: ([UInt8]) -> Void
+    private var frames: [[UInt8]] = []
 }
+
+// MARK: - MicCapture
 
 /// Microphone → 8 kHz mono Int16, delivered in 160-sample (20 ms) frames
 final class MicCapture {
-    private let engine = AVAudioEngine()
-    private var converter: AVAudioConverter?
-    private var residue: [Int16] = []
-    private var conditioner = MicConditioner()
-    private let outFormat = AVAudioFormat(
-        commonFormat: .pcmFormatInt16, sampleRate: 8000,
-        channels: 1, interleaved: true
-    )!
-
-    var onFrame: (([Int16]) -> Void)?
-    // Diagnostic: reports the live input format at (re)start
-    var onFormat: ((String) -> Void)?
-
-    private var capturing = false
-    private var configObserver: NSObjectProtocol?
+    // MARK: Lifecycle
 
     init() {
         // A route change (e.g. Bluetooth headset connecting) stops the engine
@@ -172,9 +195,11 @@ final class MicCapture {
         configObserver = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
         ) { [weak self] _ in
-            guard let self, self.capturing else { return }
-            self.stop()
-            try? self.start()
+            guard let self, capturing else {
+                return
+            }
+            stop()
+            try? start()
         }
     }
 
@@ -183,6 +208,12 @@ final class MicCapture {
             NotificationCenter.default.removeObserver(configObserver)
         }
     }
+
+    // MARK: Internal
+
+    var onFrame: (([Int16]) -> Void)?
+    // Diagnostic: reports the live input format at (re)start
+    var onFormat: ((String) -> Void)?
 
     func start() throws {
         let input = engine.inputNode
@@ -194,7 +225,7 @@ final class MicCapture {
         residue = []
         conditioner.reset()
         onFormat?("\(Int(hwFormat.sampleRate)) Hz, \(hwFormat.channelCount) ch → 8000 Hz")
-        input.installTap(onBus: 0, bufferSize: 1024, format: hwFormat) { [weak self] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1_024, format: hwFormat) { [weak self] buffer, _ in
             self?.handle(buffer)
         }
         engine.prepare()
@@ -210,11 +241,29 @@ final class MicCapture {
         residue = []
     }
 
+    // MARK: Private
+
+    private let engine = AVAudioEngine()
+    private var converter: AVAudioConverter?
+    private var residue: [Int16] = []
+    private var conditioner = MicConditioner()
+    private let outFormat = AVAudioFormat(
+        commonFormat: .pcmFormatInt16, sampleRate: 8_000,
+        channels: 1, interleaved: true
+    )!
+
+    private var capturing = false
+    private var configObserver: NSObjectProtocol?
+
     private func handle(_ buffer: AVAudioPCMBuffer) {
-        guard let converter else { return }
+        guard let converter else {
+            return
+        }
         let ratio = outFormat.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
-        guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity) else { return }
+        guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity) else {
+            return
+        }
 
         var fed = false
         var err: NSError?
@@ -227,7 +276,9 @@ final class MicCapture {
             status.pointee = .haveData
             return buffer
         }
-        guard err == nil, out.frameLength > 0, let ch = out.int16ChannelData?[0] else { return }
+        guard err == nil, out.frameLength > 0, let ch = out.int16ChannelData?[0] else {
+            return
+        }
 
         residue.append(contentsOf: UnsafeBufferPointer(start: ch, count: Int(out.frameLength)))
         while residue.count >= 160 {

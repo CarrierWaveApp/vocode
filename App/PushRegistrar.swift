@@ -1,11 +1,19 @@
 import UIKit
 import UserNotifications
 
+// MARK: - PushManager
+
 /// APNs registration, ported from hearth's Urithiru PushManager. Permission
 /// is requested only when buddy watch is first enabled — a user who never
 /// touches it never sees the prompt.
 @MainActor
 final class PushManager {
+    // MARK: Lifecycle
+
+    private init() {}
+
+    // MARK: Internal
+
     static let shared = PushManager()
 
     /// Latest APNs device token as hex, once the system vends one
@@ -15,8 +23,6 @@ final class PushManager {
     /// Re-fired on enable() when a token already exists.
     var onToken: ((String) -> Void)?
 
-    private init() {}
-
     /// Permission only, no APNs registration — nets reminders are local
     /// notifications and must not force remote-push setup
     func requestAuthorization() async -> Bool {
@@ -24,7 +30,7 @@ final class PushManager {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .notDetermined:
-            return (try? await center.requestAuthorization(
+            return await (try? center.requestAuthorization(
                 options: [.alert, .sound, .badge]
             )) ?? false
         case .denied:
@@ -38,7 +44,9 @@ final class PushManager {
     /// Apple-recommended per launch.
     func enable() {
         Task {
-            guard await requestAuthorization() else { return }
+            guard await requestAuthorization() else {
+                return
+            }
             UIApplication.shared.registerForRemoteNotifications()
         }
     }
@@ -49,6 +57,8 @@ final class PushManager {
         onToken?(hex)
     }
 }
+
+// MARK: - PushDelegate
 
 final class PushDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
@@ -83,7 +93,9 @@ final class PushDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCen
               let talkgroup = info["tg"] as? Int, talkgroup > 0,
               response.actionIdentifier == NetScheduler.joinAction
               || response.actionIdentifier == UNNotificationDefaultActionIdentifier
-        else { return }
+        else {
+            return
+        }
         let defaults = UserDefaults.standard
         defaults.set(talkgroup, forKey: NetScheduler.pendingTGKey)
         defaults.set(info["name"] as? String ?? "", forKey: NetScheduler.pendingNameKey)

@@ -1,13 +1,14 @@
+// swiftlint:disable file_length
+
 import SwiftUI
 
+// MARK: - ContentView
+
 struct ContentView: View {
+    // MARK: Internal
+
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
-    @State private var showSettings = false
-    @State private var showMap = false
-    @StateObject private var buddyClient = BuddyClient()
-    @State private var connExpanded = false
-    @AppStorage("tgCollapsed") private var tgCollapsed = false
 
     var body: some View {
         NavigationStack {
@@ -33,7 +34,9 @@ struct ContentView: View {
                                     model.applyListenStates(settings)
                                 },
                                 selectTX: {
-                                    guard tg.listen == .live else { return }
+                                    guard tg.listen == .live else {
+                                        return
+                                    }
                                     settings.txTargetTG =
                                         settings.txTargetTG == Int(tg.tg) ? 0 : Int(tg.tg)
                                 }
@@ -144,6 +147,14 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
     }
 
+    // MARK: Private
+
+    @State private var showSettings = false
+    @State private var showMap = false
+    @StateObject private var buddyClient = BuddyClient()
+    @State private var connExpanded = false
+    @AppStorage("tgCollapsed") private var tgCollapsed = false
+
     private var tgHeader: some View {
         let list = settings.talkgroupList.filter { $0.tg > 0 }
         let live = list.filter { $0.listen == .live }.count
@@ -180,18 +191,6 @@ struct ContentView: View {
             }
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func countDot(_ n: Int, _ color: Color) -> some View {
-        if n > 0 {
-            HStack(spacing: 3) {
-                Circle().fill(color).frame(width: 6, height: 6)
-                Text("\(n)")
-                    .font(CW.mono(10))
-                    .foregroundStyle(CW.dim)
-            }
-        }
     }
 
     /// Lives in the nav bar as the principal item: dot, summary, chevron.
@@ -253,9 +252,25 @@ struct ContentView: View {
         }
         .padding(.vertical, 4)
     }
+
+    @ViewBuilder
+    private func countDot(_ n: Int, _ color: Color) -> some View {
+        if n > 0 {
+            HStack(spacing: 3) {
+                Circle().fill(color).frame(width: 6, height: 6)
+                Text("\(n)")
+                    .font(CW.mono(10))
+                    .foregroundStyle(CW.dim)
+            }
+        }
+    }
 }
 
+// MARK: - TGRow
+
 struct TGRow: View {
+    // MARK: Internal
+
     let tg: Talkgroup
     let isTX: Bool
     let cycle: () -> Void
@@ -308,22 +323,26 @@ struct TGRow: View {
         .padding(.vertical, 2)
     }
 
+    // MARK: Private
+
     private var stateIcon: String {
         switch tg.listen {
-        case .live: return "speaker.wave.2.fill"
-        case .muted: return "speaker.slash.fill"
-        case .off: return "power"
+        case .live: "speaker.wave.2.fill"
+        case .muted: "speaker.slash.fill"
+        case .off: "power"
         }
     }
 
     private var stateColor: Color {
         switch tg.listen {
-        case .live: return CW.green
-        case .muted: return CW.amber
-        case .off: return CW.xdim
+        case .live: CW.green
+        case .muted: CW.amber
+        case .off: CW.xdim
         }
     }
 }
+
+// MARK: - TalkBarHost
 
 /// Picks the TX destination for the talk bar: the linked node on
 /// AllStar, the selected talkgroup everywhere else
@@ -355,7 +374,11 @@ struct TalkBarHost: View {
     }
 }
 
+// MARK: - TalkBar
+
 struct TalkBar: View {
+    // MARK: Internal
+
     let title: String? // TX destination display name
     let tag: String? // "TG 3100" or "NODE 55553"
     let armed: Bool
@@ -407,14 +430,20 @@ struct TalkBar: View {
         .padding(.bottom, 4)
     }
 
+    // MARK: Private
+
     private var subtitle: String {
-        guard let tag else { return "SELECT IN TALKGROUPS" }
+        guard let tag else {
+            return "SELECT IN TALKGROUPS"
+        }
         if transmitting {
             return "TRANSMITTING · \(tag)"
         }
         return armed ? "TX TARGET · \(tag)" : "TX DISARMED · \(tag)"
     }
 }
+
+// MARK: - LogView
 
 struct LogView: View {
     @EnvironmentObject var model: MonitorModel
@@ -451,7 +480,11 @@ struct LogView: View {
     }
 }
 
+// MARK: - HeardRow
+
 struct HeardRow: View {
+    // MARK: Internal
+
     let entry: HeardEntry
     let muted: Bool
     var tgName: String?
@@ -505,24 +538,32 @@ struct HeardRow: View {
         .padding(.vertical, 1)
     }
 
-    private func markdown(_ s: String) -> AttributedString {
-        (try? AttributedString(markdown: s)) ?? AttributedString(s)
-    }
+    // MARK: Private
 
     private var duration: String {
-        let s = Int((entry.ended ?? Date()).timeIntervalSince(entry.started))
-        return s >= 60 ? "\(s / 60)m \(s % 60)s" : "\(s)s"
+        let seconds = Int((entry.ended ?? Date()).timeIntervalSince(entry.started))
+        return seconds >= 60 ? "\(seconds / 60)m \(seconds % 60)s" : "\(seconds)s"
+    }
+
+    private func markdown(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text)) ?? AttributedString(text)
     }
 }
 
+// MARK: - Tag
+
 struct Tag: View {
-    let text: String
-    let color: Color
+    // MARK: Lifecycle
 
     init(_ text: String, color: Color) {
         self.text = text
         self.color = color
     }
+
+    // MARK: Internal
+
+    let text: String
+    let color: Color
 
     var body: some View {
         Text(text)
@@ -535,6 +576,8 @@ struct Tag: View {
             .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
+
+// MARK: - QRZSection
 
 /// QRZ credentials for map geocoding, split out to keep SettingsView readable
 private struct QRZSection: View {
@@ -559,6 +602,8 @@ private struct QRZSection: View {
         }
     }
 }
+
+// MARK: - StationSection
 
 /// Per-mode station credentials, split out to keep SettingsView readable
 private struct StationSection: View {
@@ -602,81 +647,13 @@ private struct StationSection: View {
     }
 }
 
+// MARK: - SettingsView
+
 struct SettingsView: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var scout = MasterScout()
-    @StateObject private var pinger = ICMPPinger()
-
-    /// The Master row shows the selection by directory name when the host is
-    /// a known BrandMeister master, or the raw host otherwise.
-    private var serverLabel: String {
-        guard let selected = BMDirectory.master(forHost: settings.host) else {
-            return settings.host
-        }
-        return "\(selected.id) \(selected.country)"
-    }
-
-    private var serverProbe: ProbeState? {
-        if let selected = BMDirectory.master(forHost: settings.host) {
-            return scout.results[selected.id]
-        }
-        return scout.results[MasterScout.customKey]
-    }
-
-    private var allstarLabel: String {
-        let target = settings.aslTarget.trimmingCharacters(in: .whitespaces)
-        guard !target.isEmpty else { return "Choose a node" }
-        if let node = ASLDirectory.shared.node(forNumber: target) {
-            return "\(target) · \(node.callsign)"
-        }
-        return "Node \(target)"
-    }
-
-    private var reflectorLabel: String {
-        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-        guard !host.isEmpty else { return "Choose a reflector" }
-        if let reflector = XLXDirectory.reflector(forHost: host) {
-            return "\(reflector.name) · \(reflector.country)"
-        }
-        return host
-    }
-
-    /// Directory reflectors carry a baked IP; a custom host only gets a
-    /// badge when it's already a literal IPv4 address (no DNS here)
-    private var selectedReflectorIP: String? {
-        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-        if let reflector = XLXDirectory.reflector(forHost: host) {
-            return reflector.ipAddress
-        }
-        var probe = in_addr()
-        return inet_pton(AF_INET, host, &probe) == 1 ? host : nil
-    }
-
-    private func probeSelected() {
-        if settings.netMode == "dstar" {
-            if let address = selectedReflectorIP {
-                pinger.ping([address])
-            }
-            return
-        }
-        guard settings.netMode == "openterminal" else { return }
-        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
-        if let selected = BMDirectory.master(forHost: settings.host) {
-            scout.probeOne(selected, dmrID: dmrID)
-        } else if !settings.host.isEmpty, let port = UInt16(exactly: settings.otpPort) {
-            scout.probeCustom(host: settings.host.trimmingCharacters(in: .whitespaces),
-                              port: port, dmrID: dmrID)
-        }
-    }
-
-    private var tgList: Binding<[Talkgroup]> {
-        Binding(
-            get: { settings.talkgroupList },
-            set: { settings.talkgroupList = $0 }
-        )
-    }
 
     var body: some View {
         NavigationStack {
@@ -828,7 +805,10 @@ struct SettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Voice decoding by mbelib (ISC license).")
-                        Text("Voice encoding by the OP25 project's software AMBE+2 encoder, © Max H. Parke KA1RBI, GPL v3.")
+                        Text(
+                            "Voice encoding by the OP25 project's software AMBE+2 encoder, "
+                                + "© Max H. Parke KA1RBI, GPL v3."
+                        )
                         Text("Fonts: Outfit and IBM Plex Mono (SIL Open Font License).")
                         Text("Full license texts ship in the source repository under Packages/AMBE.")
                     }
@@ -860,5 +840,86 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: Private
+
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var scout = MasterScout()
+    @StateObject private var pinger = ICMPPinger()
+
+    /// The Master row shows the selection by directory name when the host is
+    /// a known BrandMeister master, or the raw host otherwise.
+    private var serverLabel: String {
+        guard let selected = BMDirectory.master(forHost: settings.host) else {
+            return settings.host
+        }
+        return "\(selected.id) \(selected.country)"
+    }
+
+    private var serverProbe: ProbeState? {
+        if let selected = BMDirectory.master(forHost: settings.host) {
+            return scout.results[selected.id]
+        }
+        return scout.results[MasterScout.customKey]
+    }
+
+    private var allstarLabel: String {
+        let target = settings.aslTarget.trimmingCharacters(in: .whitespaces)
+        guard !target.isEmpty else {
+            return "Choose a node"
+        }
+        if let node = ASLDirectory.shared.node(forNumber: target) {
+            return "\(target) · \(node.callsign)"
+        }
+        return "Node \(target)"
+    }
+
+    private var reflectorLabel: String {
+        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty else {
+            return "Choose a reflector"
+        }
+        if let reflector = XLXDirectory.reflector(forHost: host) {
+            return "\(reflector.name) · \(reflector.country)"
+        }
+        return host
+    }
+
+    /// Directory reflectors carry a baked IP; a custom host only gets a
+    /// badge when it's already a literal IPv4 address (no DNS here)
+    private var selectedReflectorIP: String? {
+        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
+        if let reflector = XLXDirectory.reflector(forHost: host) {
+            return reflector.ipAddress
+        }
+        var probe = in_addr()
+        return inet_pton(AF_INET, host, &probe) == 1 ? host : nil
+    }
+
+    private var tgList: Binding<[Talkgroup]> {
+        Binding(
+            get: { settings.talkgroupList },
+            set: { settings.talkgroupList = $0 }
+        )
+    }
+
+    private func probeSelected() {
+        if settings.netMode == "dstar" {
+            if let address = selectedReflectorIP {
+                pinger.ping([address])
+            }
+            return
+        }
+        guard settings.netMode == "openterminal" else {
+            return
+        }
+        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
+        if let selected = BMDirectory.master(forHost: settings.host) {
+            scout.probeOne(selected, dmrID: dmrID)
+        } else if !settings.host.isEmpty, let port = UInt16(exactly: settings.otpPort) {
+            scout.probeCustom(host: settings.host.trimmingCharacters(in: .whitespaces),
+                              port: port, dmrID: dmrID)
+        }
     }
 }

@@ -4,6 +4,8 @@ import SwiftUI
 /// countdown and one-tap Join. body IS a Section so ContentView only
 /// inserts `NetsSection()`.
 struct NetsSection: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
 
@@ -33,6 +35,8 @@ struct NetsSection: View {
             SectionLabel("Nets")
         }
     }
+
+    // MARK: Private
 
     /// Next two enabled nets by start time; recomputed on each timeline tick
     private var upcoming: [(net: Net, start: Date)] {

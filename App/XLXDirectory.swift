@@ -1,5 +1,7 @@
 import Foundation
 
+// MARK: - XLXReflector
+
 // Data file: the bundled reflector snapshot dominates the line count.
 // swiftlint:disable file_length
 
@@ -14,6 +16,8 @@ struct XLXReflector: Identifiable {
     }
 }
 
+// MARK: - XLXDirectory
+
 /// Bundled snapshot of the live XLX registry (xlxapi.rlx.lu), reflectors
 /// seen within 24h of the snapshot, generated 2026-09-06. Hostnames are
 /// the reflector dashboards where they resolve, else the registered IP;
@@ -22,7 +26,9 @@ struct XLXReflector: Identifiable {
 enum XLXDirectory {
     static let all: [XLXReflector] = xlxRawDirectory.split(separator: "\n").compactMap { line in
         let parts = line.split(separator: "|", omittingEmptySubsequences: false)
-        guard parts.count == 4 else { return nil }
+        guard parts.count == 4 else {
+            return nil
+        }
         return XLXReflector(name: String(parts[0]), host: String(parts[1]),
                             ipAddress: String(parts[2]), country: String(parts[3]))
     }

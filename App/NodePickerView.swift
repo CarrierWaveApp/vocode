@@ -4,33 +4,9 @@ import SwiftUI
 /// sets the AllStar target; a Custom section keeps free-text entry for
 /// private nodes not in the directory.
 struct NodePickerView: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var directory = ASLDirectory.shared
-    @State private var search = ""
-    @State private var customNode = ""
-
-    private static let maxRows = 200
-
-    private var trimmedCustomNode: String {
-        customNode.trimmingCharacters(in: .whitespaces).filter(\.isNumber)
-    }
-
-    private var filtered: [ASLNode] {
-        let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return Array(directory.all.prefix(Self.maxRows)) }
-        var matches: [ASLNode] = []
-        for node in directory.all where matches.count < Self.maxRows {
-            if node.node.hasPrefix(needle)
-                || node.callsign.lowercased().contains(needle)
-                || node.desc.lowercased().contains(needle)
-                || node.location.lowercased().contains(needle)
-            {
-                matches.append(node)
-            }
-        }
-        return matches
-    }
 
     var body: some View {
         Form {
@@ -79,6 +55,37 @@ struct NodePickerView: View {
                 customNode = settings.aslTarget
             }
         }
+    }
+
+    // MARK: Private
+
+    private static let maxRows = 200
+
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var directory = ASLDirectory.shared
+    @State private var search = ""
+    @State private var customNode = ""
+
+    private var trimmedCustomNode: String {
+        customNode.trimmingCharacters(in: .whitespaces).filter(\.isNumber)
+    }
+
+    private var filtered: [ASLNode] {
+        let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else {
+            return Array(directory.all.prefix(Self.maxRows))
+        }
+        var matches: [ASLNode] = []
+        for node in directory.all where matches.count < Self.maxRows {
+            if node.node.hasPrefix(needle)
+                || node.callsign.lowercased().contains(needle)
+                || node.desc.lowercased().contains(needle)
+                || node.location.lowercased().contains(needle)
+            {
+                matches.append(node)
+            }
+        }
+        return matches
     }
 
     private func row(_ node: ASLNode) -> some View {

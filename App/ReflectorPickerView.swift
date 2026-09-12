@@ -4,31 +4,9 @@ import SwiftUI
 /// country. Tapping a reflector sets the D-STAR host; a Custom section
 /// keeps free-text entry for anything not in the snapshot.
 struct ReflectorPickerView: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var pinger = ICMPPinger()
-    @State private var search = ""
-    @State private var customHost = ""
-
-    private var trimmedCustomHost: String {
-        customHost.trimmingCharacters(in: .whitespaces)
-    }
-
-    private var filtered: [XLXReflector] {
-        let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return XLXDirectory.all }
-        return XLXDirectory.all.filter {
-            $0.name.lowercased().contains(needle)
-                || $0.host.lowercased().contains(needle)
-                || $0.country.lowercased().contains(needle)
-        }
-    }
-
-    private var byCountry: [(country: String, reflectors: [XLXReflector])] {
-        Dictionary(grouping: filtered, by: \.country)
-            .map { (country: $0.key, reflectors: $0.value.sorted { $0.name < $1.name }) }
-            .sorted { $0.country < $1.country }
-    }
 
     var body: some View {
         Form {
@@ -77,6 +55,35 @@ struct ReflectorPickerView: View {
             pinger.ping(XLXDirectory.all.map(\.ipAddress))
         }
         .onDisappear { pinger.cancel() }
+    }
+
+    // MARK: Private
+
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var pinger = ICMPPinger()
+    @State private var search = ""
+    @State private var customHost = ""
+
+    private var trimmedCustomHost: String {
+        customHost.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var filtered: [XLXReflector] {
+        let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else {
+            return XLXDirectory.all
+        }
+        return XLXDirectory.all.filter {
+            $0.name.lowercased().contains(needle)
+                || $0.host.lowercased().contains(needle)
+                || $0.country.lowercased().contains(needle)
+        }
+    }
+
+    private var byCountry: [(country: String, reflectors: [XLXReflector])] {
+        Dictionary(grouping: filtered, by: \.country)
+            .map { (country: $0.key, reflectors: $0.value.sorted { $0.name < $1.name }) }
+            .sorted { $0.country < $1.country }
     }
 
     private func row(_ reflector: XLXReflector) -> some View {

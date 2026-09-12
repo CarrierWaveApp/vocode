@@ -3,19 +3,10 @@ import Foundation
 /// G.711 µ-law, the codec AllStar links negotiate. 8 kHz, one byte per
 /// sample, so a 20 ms IAX frame is 160 bytes.
 enum Ulaw {
-    private static let bias = 132
-    private static let clip = 32635
+    // MARK: Internal
 
     /// Byte → linear sample, precomputed once
     static let table: [Int16] = (0 ... 255).map { decodeByte(UInt8($0)) }
-
-    private static func decodeByte(_ byte: UInt8) -> Int16 {
-        let inverted = ~byte
-        let exponent = Int((inverted >> 4) & 0x07)
-        let mantissa = Int(inverted & 0x0F)
-        let magnitude = (((mantissa << 3) + bias) << exponent) - bias
-        return Int16(inverted & 0x80 != 0 ? -magnitude : magnitude)
-    }
 
     static func encode(_ sample: Int16) -> UInt8 {
         var magnitude = Int(sample)
@@ -35,10 +26,23 @@ enum Ulaw {
     }
 
     static func decode(_ data: Data) -> [Float] {
-        data.map { Float(table[Int($0)]) / 32768 }
+        data.map { Float(table[Int($0)]) / 32_768 }
     }
 
     static func encode(_ pcm: [Int16]) -> Data {
         Data(pcm.map(encode))
+    }
+
+    // MARK: Private
+
+    private static let bias = 132
+    private static let clip = 32_635
+
+    private static func decodeByte(_ byte: UInt8) -> Int16 {
+        let inverted = ~byte
+        let exponent = Int((inverted >> 4) & 0x07)
+        let mantissa = Int(inverted & 0x0F)
+        let magnitude = (((mantissa << 3) + bias) << exponent) - bias
+        return Int16(inverted & 0x80 != 0 ? -magnitude : magnitude)
     }
 }

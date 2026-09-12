@@ -2,6 +2,8 @@ import AVFoundation
 import Combine
 import Foundation
 
+// MARK: - HeardEntry
+
 struct HeardEntry: Identifiable, Equatable {
     let id: UInt32 // streamID
     let src: UInt32
@@ -24,6 +26,8 @@ struct HeardEntry: Identifiable, Equatable {
     }
 }
 
+// MARK: - LogEntry
+
 struct LogEntry: Identifiable {
     let id = UUID()
     let date = Date()
@@ -31,50 +35,12 @@ struct LogEntry: Identifiable {
     let isError: Bool
 }
 
+// MARK: - MonitorModel
+
 @MainActor
+// swiftlint:disable:next type_body_length
 final class MonitorModel: ObservableObject {
-    @Published var link: LinkState = .idle
-    @Published var heard: [HeardEntry] = []
-    /// Ad-hoc mutes for talkgroups not in the configured list
-    @Published var muted: Set<UInt32> = []
-    // Configured talkgroups silenced via listen state (muted or off)
-    private var silenced: Set<UInt32> = []
-    private var otpSubscribed: Set<UInt32> = []
-    @Published var audioError: String?
-    @Published var log: [LogEntry] = []
-    @Published var transmitting = false
-    @Published var txBursts: [TXBurst] = []
-
-    var mic: MicCapture?
-    private var txBatcher: TxBatcher?
-    let txMonitor = TxMonitor()
-    var monitorOut: AudioOutput?
-    var lastHistorySeed = Date.distantPast
-    var historyFeed: BrandmeisterLH?
-    private var txDst: UInt32 = 0
-    var txPending = false
-
-    private var client: HomebrewClient?
-    private var rewind: RewindClient?
-    var dstarClient: DExtraClient?
-    var iaxClient: IAXClient?
-    // Invalidates an in-flight AllStar DNS resolution on disconnect/reconnect
-    var iaxConnectToken = UUID()
-    var allstarStream: UInt32 = 0xA500_0000
-    private var scout: MasterScout?
-    let pipeline = DecodePipeline()
-    private let lookup = CallsignLookup()
-    let qrz = QRZLookup()
-    // BM map overlay; independent of the DMR link on purpose, so the map
-    // works while disconnected — disconnect() must not touch it
-    let overlay: OverlayModel
-    let notes: CallNotesStore
-    let maxHeard = 200
-    private let maxLog = 300
-
-    var isConnected: Bool {
-        link == .running
-    }
+    // MARK: Lifecycle
 
     init(notes: CallNotesStore) {
         self.notes = notes
@@ -88,6 +54,39 @@ final class MonitorModel: ObservableObject {
         pipeline.onCallEnd = { [weak self] stream in
             Task { @MainActor in self?.closeCall(stream) }
         }
+    }
+
+    // MARK: Internal
+
+    @Published var link: LinkState = .idle
+    @Published var heard: [HeardEntry] = []
+    /// Ad-hoc mutes for talkgroups not in the configured list
+    @Published var muted: Set<UInt32> = []
+    @Published var audioError: String?
+    @Published var log: [LogEntry] = []
+    @Published var transmitting = false
+    @Published var txBursts: [TXBurst] = []
+    var mic: MicCapture?
+    let txMonitor = TxMonitor()
+    var monitorOut: AudioOutput?
+    var lastHistorySeed = Date.distantPast
+    var historyFeed: BrandmeisterLH?
+    var txPending = false
+    var dstarClient: DExtraClient?
+    var iaxClient: IAXClient?
+    // Invalidates an in-flight AllStar DNS resolution on disconnect/reconnect
+    var iaxConnectToken = UUID()
+    var allstarStream: UInt32 = 0xA500_0000
+    let pipeline = DecodePipeline()
+    let qrz = QRZLookup()
+    // BM map overlay; independent of the DMR link on purpose, so the map
+    // works while disconnected — disconnect() must not touch it
+    let overlay: OverlayModel
+    let notes: CallNotesStore
+    let maxHeard = 200
+
+    var isConnected: Bool {
+        link == .running
     }
 
     func connect(_ settings: Settings) {
@@ -111,31 +110,6 @@ final class MonitorModel: ObservableObject {
         refreshHistory(settings)
     }
 
-    // Probe every BrandMeister master, point the host at the fastest one,
-    // then connect. Falls back to the configured host if nothing answers.
-    // ("Master" is BrandMeister's own term for its servers.)
-    // swiftlint:disable:next inclusive_language
-    private func findMasterThenConnect(_ settings: Settings) {
-        link = .connecting
-        appendLog("probing masters for lowest latency")
-        let scout = MasterScout()
-        self.scout = scout
-        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
-        scout.probeAll(dmrID: dmrID) { [weak self] fastest in
-            guard let self, self.scout === scout else { return }
-            self.scout = nil
-            // swiftlint:disable:next inclusive_language
-            if let (master, millis) = fastest {
-                settings.host = master.host
-                settings.otpPort = Int(MasterScout.openTerminalPort)
-                self.appendLog("nearest master: \(master.id) \(master.country), \(millis) ms")
-            } else {
-                self.appendLog("no master reachable, trying \(settings.host)", error: true)
-            }
-            self.connectRewind(settings)
-        }
-    }
-
     func startAudio() {
         do {
             try pipeline.startAudio()
@@ -144,58 +118,6 @@ final class MonitorModel: ObservableObject {
             audioError = "Audio failed to start"
             appendLog("audio failed to start", error: true)
         }
-    }
-
-    private func connectHomebrew(_ settings: Settings) {
-        guard let cfg = settings.homebrewConfig else {
-            link = .failed("check settings")
-            return
-        }
-        startAudio()
-        let c = HomebrewClient(config: cfg)
-        c.onState = { [weak self] st in
-            Task { @MainActor in self?.link = st }
-        }
-        c.onPacket = { [weak self] pkt in
-            self?.pipeline.submit(pkt)
-        }
-        c.onLog = { [weak self] line, isError in
-            Task { @MainActor in self?.appendLog(line, error: isError) }
-        }
-        client = c
-        c.connect()
-    }
-
-    private func connectRewind(_ settings: Settings) {
-        guard let cfg = settings.rewindConfig else {
-            link = .failed("check settings")
-            return
-        }
-        if cfg.talkgroups.isEmpty {
-            appendLog("no talkgroups configured, nothing to subscribe", error: true)
-        }
-        startAudio()
-        let c = RewindClient(config: cfg)
-        c.onState = { [weak self] st in
-            Task { @MainActor in self?.link = st }
-        }
-        c.onLog = { [weak self] line, isError in
-            Task { @MainActor in self?.appendLog(line, error: isError) }
-        }
-        c.onCallStart = { [weak self] callID, src, dst in
-            self?.pipeline.resetDecoder()
-            Task { @MainActor in self?.openCall(id: callID, src: src, dst: dst, slot: 0) }
-        }
-        c.onAudio = { [weak self] frames, dst in
-            self?.pipeline.submitAmbe(frames, dst: dst)
-        }
-        c.onCallEnd = { [weak self] callID in
-            Task { @MainActor in self?.closeCall(callID) }
-        }
-        rewind = c
-        otpSubscribed = Set(cfg.talkgroups)
-        c.connect()
-        applyListenStates(settings)
     }
 
     func disconnect() {
@@ -270,7 +192,10 @@ final class MonitorModel: ObservableObject {
             return
         }
         guard !transmitting, !txPending, rewind != nil, isConnected,
-              let target = settings.txTarget, target.listen == .live else { return }
+              let target = settings.txTarget, target.listen == .live
+        else {
+            return
+        }
         txPending = true
         Task { @MainActor in
             defer { txPending = false }
@@ -279,9 +204,140 @@ final class MonitorModel: ObservableObject {
                 appendLog("microphone permission denied", error: true)
                 return
             }
-            guard !transmitting, let rewind, isConnected else { return }
+            guard !transmitting, let rewind, isConnected else {
+                return
+            }
             startTx(rewind: rewind, dst: target.tg)
         }
+    }
+
+    func endTransmit() {
+        guard transmitting else {
+            return
+        }
+        mic?.stop()
+        mic = nil
+        txBatcher = nil
+        if let iaxClient {
+            iaxClient.endTransmit()
+        } else {
+            rewind?.endTransmit(dst: txDst)
+        }
+        transmitting = false
+        if let index = txBursts.firstIndex(where: { $0.ended == nil }) {
+            txBursts[index].ended = Date()
+        }
+        setTransmitAudioSession(false)
+    }
+
+    func clearHeard() {
+        heard.removeAll()
+    }
+
+    // QRZ geocoding lives in MonitorModel+Geo.swift
+
+    func closeCall(_ stream: UInt32) {
+        if let i = heard.firstIndex(where: { $0.id == stream }) {
+            heard[i].ended = Date()
+        }
+    }
+
+    func stationInfo(_ src: UInt32) async -> CallsignInfo? {
+        await lookup.info(for: src)
+    }
+
+    // MARK: Private
+
+    // Configured talkgroups silenced via listen state (muted or off)
+    private var silenced: Set<UInt32> = []
+    private var otpSubscribed: Set<UInt32> = []
+
+    private var txBatcher: TxBatcher?
+    private var txDst: UInt32 = 0
+
+    private var client: HomebrewClient?
+    private var rewind: RewindClient?
+    private var scout: MasterScout?
+    private let lookup = CallsignLookup()
+    private let maxLog = 300
+
+    // Probe every BrandMeister master, point the host at the fastest one,
+    // then connect. Falls back to the configured host if nothing answers.
+    // ("Master" is BrandMeister's own term for its servers.)
+    // swiftlint:disable:next inclusive_language
+    private func findMasterThenConnect(_ settings: Settings) {
+        link = .connecting
+        appendLog("probing masters for lowest latency")
+        let scout = MasterScout()
+        self.scout = scout
+        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
+        scout.probeAll(dmrID: dmrID) { [weak self] fastest in
+            guard let self, self.scout === scout else {
+                return
+            }
+            self.scout = nil
+            // swiftlint:disable:next inclusive_language
+            if let (master, millis) = fastest {
+                settings.host = master.host
+                settings.otpPort = Int(MasterScout.openTerminalPort)
+                appendLog("nearest master: \(master.id) \(master.country), \(millis) ms")
+            } else {
+                appendLog("no master reachable, trying \(settings.host)", error: true)
+            }
+            connectRewind(settings)
+        }
+    }
+
+    private func connectHomebrew(_ settings: Settings) {
+        guard let cfg = settings.homebrewConfig else {
+            link = .failed("check settings")
+            return
+        }
+        startAudio()
+        let homebrewClient = HomebrewClient(config: cfg)
+        homebrewClient.onState = { [weak self] st in
+            Task { @MainActor in self?.link = st }
+        }
+        homebrewClient.onPacket = { [weak self] pkt in
+            self?.pipeline.submit(pkt)
+        }
+        homebrewClient.onLog = { [weak self] line, isError in
+            Task { @MainActor in self?.appendLog(line, error: isError) }
+        }
+        client = homebrewClient
+        homebrewClient.connect()
+    }
+
+    private func connectRewind(_ settings: Settings) {
+        guard let cfg = settings.rewindConfig else {
+            link = .failed("check settings")
+            return
+        }
+        if cfg.talkgroups.isEmpty {
+            appendLog("no talkgroups configured, nothing to subscribe", error: true)
+        }
+        startAudio()
+        let rewindClient = RewindClient(config: cfg)
+        rewindClient.onState = { [weak self] st in
+            Task { @MainActor in self?.link = st }
+        }
+        rewindClient.onLog = { [weak self] line, isError in
+            Task { @MainActor in self?.appendLog(line, error: isError) }
+        }
+        rewindClient.onCallStart = { [weak self] callID, src, dst in
+            self?.pipeline.resetDecoder()
+            Task { @MainActor in self?.openCall(id: callID, src: src, dst: dst, slot: 0) }
+        }
+        rewindClient.onAudio = { [weak self] frames, dst in
+            self?.pipeline.submitAmbe(frames, dst: dst)
+        }
+        rewindClient.onCallEnd = { [weak self] callID in
+            Task { @MainActor in self?.closeCall(callID) }
+        }
+        rewind = rewindClient
+        otpSubscribed = Set(cfg.talkgroups)
+        rewindClient.connect()
+        applyListenStates(settings)
     }
 
     private func startTx(rewind: RewindClient, dst: UInt32) {
@@ -321,27 +377,6 @@ final class MonitorModel: ObservableObject {
         }
     }
 
-    func endTransmit() {
-        guard transmitting else { return }
-        mic?.stop()
-        mic = nil
-        txBatcher = nil
-        if let iaxClient {
-            iaxClient.endTransmit()
-        } else {
-            rewind?.endTransmit(dst: txDst)
-        }
-        transmitting = false
-        if let index = txBursts.firstIndex(where: { $0.ended == nil }) {
-            txBursts[index].ended = Date()
-        }
-        setTransmitAudioSession(false)
-    }
-
-    func clearHeard() {
-        heard.removeAll()
-    }
-
     private func openCall(_ pkt: DMRDPacket) {
         openCall(id: pkt.streamID, src: pkt.src, dst: pkt.dst, slot: pkt.slot)
     }
@@ -371,17 +406,5 @@ final class MonitorModel: ObservableObject {
                 await geocode(streamID: id, callsign: call)
             }
         }
-    }
-
-    // QRZ geocoding lives in MonitorModel+Geo.swift
-
-    func closeCall(_ stream: UInt32) {
-        if let i = heard.firstIndex(where: { $0.id == stream }) {
-            heard[i].ended = Date()
-        }
-    }
-
-    func stationInfo(_ src: UInt32) async -> CallsignInfo? {
-        await lookup.info(for: src)
     }
 }

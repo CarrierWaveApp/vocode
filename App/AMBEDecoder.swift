@@ -2,15 +2,19 @@ import AVFoundation
 import CMBELib
 import Foundation
 
+// MARK: - AMBEDecoder
+
 /// Wraps mbelib for AMBE+2 3600x2450
 final class AMBEDecoder {
-    private var ctx = ambe_ctx()
-    private let quality: Int32 = 3
-    private(set) var lastErrors: Int32 = 0
+    // MARK: Lifecycle
 
     init() {
         reset()
     }
+
+    // MARK: Internal
+
+    private(set) var lastErrors: Int32 = 0
 
     func reset() {
         ambe_ctx_init(&ctx)
@@ -24,7 +28,7 @@ final class AMBEDecoder {
                 lastErrors = ambe_decode_frame(&ctx, frameBuf.baseAddress, outBuf.baseAddress, quality)
             }
         }
-        return out.map { Float($0) / 32768.0 }
+        return out.map { Float($0) / 32_768.0 }
     }
 
     /// D-STAR variant: 96-cell frame through the 3600x2400 path
@@ -35,18 +39,20 @@ final class AMBEDecoder {
                 lastErrors = ambe_decode_frame_2400(&ctx, frameBuf.baseAddress, outBuf.baseAddress, quality)
             }
         }
-        return out.map { Float($0) / 32768.0 }
+        return out.map { Float($0) / 32_768.0 }
     }
+
+    // MARK: Private
+
+    private var ctx = ambe_ctx()
+    private let quality: Int32 = 3
 }
+
+// MARK: - AudioOutput
 
 /// 8 kHz mono playback through AVAudioEngine
 final class AudioOutput {
-    private let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
-    private let format = AVAudioFormat(standardFormatWithSampleRate: 8000, channels: 1)!
-    var gain: Float = 1.0
-    private var running = false
-    private var configObserver: NSObjectProtocol?
+    // MARK: Lifecycle
 
     init() {
         engine.attach(player)
@@ -56,9 +62,11 @@ final class AudioOutput {
         configObserver = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
         ) { [weak self] _ in
-            guard let self, self.running, !self.engine.isRunning else { return }
-            try? self.engine.start()
-            self.player.play()
+            guard let self, running, !self.engine.isRunning else {
+                return
+            }
+            try? engine.start()
+            player.play()
         }
     }
 
@@ -67,6 +75,10 @@ final class AudioOutput {
             NotificationCenter.default.removeObserver(configObserver)
         }
     }
+
+    // MARK: Internal
+
+    var gain: Float = 1.0
 
     func start() throws {
         let session = AVAudioSession.sharedInstance()
@@ -92,11 +104,22 @@ final class AudioOutput {
         let count = AVAudioFrameCount(samples.count)
         guard count > 0,
               let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count),
-              let ch = buf.floatChannelData?[0] else { return }
+              let ch = buf.floatChannelData?[0]
+        else {
+            return
+        }
         buf.frameLength = count
         for i in 0 ..< samples.count {
             ch[i] = max(-1, min(1, samples[i] * gain))
         }
         player.scheduleBuffer(buf)
     }
+
+    // MARK: Private
+
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private let format = AVAudioFormat(standardFormatWithSampleRate: 8_000, channels: 1)!
+    private var running = false
+    private var configObserver: NSObjectProtocol?
 }

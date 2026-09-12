@@ -38,7 +38,9 @@ extension MonitorModel {
     }
 
     private func playMonitor(_ audio: [Float]) {
-        guard !transmitting, !audio.isEmpty else { return }
+        guard !transmitting, !audio.isEmpty else {
+            return
+        }
         let output = monitorOut ?? AudioOutput()
         monitorOut = output
         try? output.start()

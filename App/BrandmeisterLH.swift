@@ -1,6 +1,8 @@
 import Foundation
 import Network
 
+// MARK: - BMCall
+
 /// One call event from the BrandMeister last-heard stream
 struct BMCall: Equatable {
     let sourceID: UInt32
@@ -13,13 +15,57 @@ struct BMCall: Equatable {
     let time: Date
 }
 
+// MARK: - BrandmeisterLH
+
 /// Minimal Engine.IO v4 / Socket.IO client for BrandMeister's last-heard
 /// feed. The raw stream is all of BrandMeister; events are filtered by
 /// talkgroup on the socket queue before delivery.
 final class BrandmeisterLH {
+    // MARK: Lifecycle
+
+    init(talkgroups: Set<UInt32>) {
+        self.talkgroups = talkgroups
+    }
+
+    // MARK: Internal
+
     var onState: ((LinkState) -> Void)?
     var onLog: ((String, Bool) -> Void)?
     var onCalls: (([BMCall]) -> Void)?
+
+    func connect() {
+        queue.async {
+            self.stopped = false
+            self.attempts = 0
+            self.open()
+        }
+    }
+
+    func disconnect() {
+        queue.async {
+            self.stopped = true
+            self.teardown()
+            self.state = .idle
+        }
+    }
+
+    /// The feed is room-based (join-only, no leave), so a talkgroup change
+    /// means a reconnect
+    func setTalkgroups(_ tgs: Set<UInt32>) {
+        queue.async {
+            guard tgs != self.talkgroups else {
+                return
+            }
+            self.talkgroups = tgs
+            guard !self.stopped else {
+                return
+            }
+            self.attempts = 0
+            self.open()
+        }
+    }
+
+    // MARK: Private
 
     private let queue = DispatchQueue(label: "bm.lh")
     private var conn: NWConnection?
@@ -42,38 +88,6 @@ final class BrandmeisterLH {
         }
     }
 
-    init(talkgroups: Set<UInt32>) {
-        self.talkgroups = talkgroups
-    }
-
-    func connect() {
-        queue.async {
-            self.stopped = false
-            self.attempts = 0
-            self.open()
-        }
-    }
-
-    func disconnect() {
-        queue.async {
-            self.stopped = true
-            self.teardown()
-            self.state = .idle
-        }
-    }
-
-    /// The feed is room-based (join-only, no leave), so a talkgroup change
-    /// means a reconnect
-    func setTalkgroups(_ tgs: Set<UInt32>) {
-        queue.async {
-            guard tgs != self.talkgroups else { return }
-            self.talkgroups = tgs
-            guard !self.stopped else { return }
-            self.attempts = 0
-            self.open()
-        }
-    }
-
     // MARK: - Connection
 
     /// Network.framework, not URLSessionWebSocketTask: the server negotiates
@@ -87,7 +101,9 @@ final class BrandmeisterLH {
             return
         }
         let urlString = "wss://api.brandmeister.network/lh/socket.io/?EIO=4&transport=websocket"
-        guard let url = URL(string: urlString) else { return }
+        guard let url = URL(string: urlString) else {
+            return
+        }
         state = .connecting
         let params = NWParameters.tls
         let wsOptions = NWProtocolWebSocket.Options()
@@ -97,14 +113,16 @@ final class BrandmeisterLH {
         conn = socket
         lastActivity = Date()
         socket.stateUpdateHandler = { [weak self] update in
-            guard let self, socket === self.conn, !self.stopped else { return }
+            guard let self, socket === conn, !self.stopped else {
+                return
+            }
             switch update {
             case let .failed(error):
-                self.onLog?("BM feed: \(error.localizedDescription)", true)
-                self.state = .failed(error.localizedDescription)
-                self.scheduleReconnect()
+                onLog?("BM feed: \(error.localizedDescription)", true)
+                state = .failed(error.localizedDescription)
+                scheduleReconnect()
             case let .waiting(error):
-                self.onLog?("BM feed waiting: \(error.localizedDescription)", true)
+                onLog?("BM feed waiting: \(error.localizedDescription)", true)
             default:
                 break
             }
@@ -126,7 +144,9 @@ final class BrandmeisterLH {
     }
 
     private func scheduleReconnect() {
-        guard !stopped else { return }
+        guard !stopped else {
+            return
+        }
         teardown()
         attempts += 1
         let base = min(30.0, pow(2.0, Double(attempts - 1)))
@@ -136,28 +156,32 @@ final class BrandmeisterLH {
         // open() flips to .connecting when the retry actually starts
         onLog?("BM feed reconnecting in \(Int(delay))s", false)
         queue.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, !self.stopped else { return }
-            self.open()
+            guard let self, !self.stopped else {
+                return
+            }
+            open()
         }
     }
 
     private func receive(on socket: NWConnection) {
         socket.receiveMessage { [weak self] data, _, _, error in
-            guard let self, socket === self.conn, !self.stopped else { return }
+            guard let self, socket === conn, !self.stopped else {
+                return
+            }
             if let error {
-                self.onLog?("BM feed: \(error.localizedDescription)", true)
+                onLog?("BM feed: \(error.localizedDescription)", true)
                 // Surface the failure; otherwise a connect-failure loop
                 // re-sets .connecting, the didSet dedup swallows it, and
                 // the UI shows "connecting" forever with no reason
-                self.state = .failed(error.localizedDescription)
-                self.scheduleReconnect()
+                state = .failed(error.localizedDescription)
+                scheduleReconnect()
                 return
             }
-            self.lastActivity = Date()
+            lastActivity = Date()
             if let data, let text = String(data: data, encoding: .utf8) {
-                self.handle(text)
+                handle(text)
             }
-            self.receive(on: socket)
+            receive(on: socket)
         }
     }
 
@@ -189,10 +213,10 @@ final class BrandmeisterLH {
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         {
             if let millis = json["pingInterval"] as? Double {
-                pingInterval = millis / 1000
+                pingInterval = millis / 1_000
             }
             if let millis = json["pingTimeout"] as? Double {
-                pingTimeout = millis / 1000
+                pingTimeout = millis / 1_000
             }
         }
         send("40")
@@ -203,7 +227,9 @@ final class BrandmeisterLH {
               let data = String(text[bracket...]).data(using: .utf8),
               let array = try? JSONSerialization.jsonObject(with: data) as? [Any],
               array.count >= 2, (array[0] as? String) == "mqtt"
-        else { return }
+        else {
+            return
+        }
         if !loggedFirstFrame {
             loggedFirstFrame = true
             onLog?("BM first frame: \(String(text.prefix(300)))", false)
@@ -214,14 +240,18 @@ final class BrandmeisterLH {
         if let wrapper = unwrap(payload) as? [String: Any], let inner = wrapper["payload"] {
             payload = inner
         }
-        guard let call = unwrap(payload) as? [String: Any] else { return }
+        guard let call = unwrap(payload) as? [String: Any] else {
+            return
+        }
         process(call)
     }
 
     private func unwrap(_ value: Any) -> Any {
         guard let text = value as? String, let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data)
-        else { return value }
+        else {
+            return value
+        }
         return json
     }
 
@@ -237,7 +267,10 @@ final class BrandmeisterLH {
             "amount": 25,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: request),
-              let json = String(data: data, encoding: .utf8) else { return }
+              let json = String(data: data, encoding: .utf8)
+        else {
+            return
+        }
         send("42[\"searchHouse\",\(json)]")
     }
 
@@ -245,7 +278,9 @@ final class BrandmeisterLH {
         guard let dst = number(call["DestinationID"]), talkgroups.contains(dst),
               let src = number(call["SourceID"]),
               let sourceCall = call["SourceCall"] as? String, !sourceCall.isEmpty
-        else { return }
+        else {
+            return
+        }
         let event = call["Event"] as? String ?? ""
         let startTime = number(call["Start"]) ?? 0
         let stopTime = number(call["Stop"]) ?? 0
@@ -284,10 +319,12 @@ final class BrandmeisterLH {
         let flushTimer = DispatchSource.makeTimerSource(queue: queue)
         flushTimer.schedule(deadline: .now() + 0.5, repeating: 0.5)
         flushTimer.setEventHandler { [weak self] in
-            guard let self, !self.pending.isEmpty else { return }
-            let batch = self.pending
-            self.pending = []
-            self.onCalls?(batch)
+            guard let self, !self.pending.isEmpty else {
+                return
+            }
+            let batch = pending
+            pending = []
+            onCalls?(batch)
         }
         flushTimer.resume()
         flusher = flushTimer
@@ -295,10 +332,12 @@ final class BrandmeisterLH {
         let watchTimer = DispatchSource.makeTimerSource(queue: queue)
         watchTimer.schedule(deadline: .now() + 5, repeating: 5)
         watchTimer.setEventHandler { [weak self] in
-            guard let self, !self.stopped else { return }
-            if Date().timeIntervalSince(self.lastActivity) > self.pingInterval + self.pingTimeout {
-                self.onLog?("BM feed stalled, reconnecting", true)
-                self.scheduleReconnect()
+            guard let self, !self.stopped else {
+                return
+            }
+            if Date().timeIntervalSince(lastActivity) > pingInterval + pingTimeout {
+                onLog?("BM feed stalled, reconnecting", true)
+                scheduleReconnect()
             }
         }
         watchTimer.resume()
@@ -306,7 +345,9 @@ final class BrandmeisterLH {
     }
 
     private func send(_ text: String) {
-        guard let conn else { return }
+        guard let conn else {
+            return
+        }
         let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
         let context = NWConnection.ContentContext(identifier: "text", metadata: [metadata])
         conn.send(
@@ -314,8 +355,10 @@ final class BrandmeisterLH {
             contentContext: context,
             isComplete: true,
             completion: .contentProcessed { [weak self] error in
-                guard let self, let error, !self.stopped else { return }
-                self.onLog?("BM send failed: \(error.localizedDescription)", true)
+                guard let self, let error, !self.stopped else {
+                    return
+                }
+                onLog?("BM send failed: \(error.localizedDescription)", true)
             }
         )
     }

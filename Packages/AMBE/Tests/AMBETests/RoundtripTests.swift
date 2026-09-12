@@ -18,12 +18,12 @@ final class RoundtripTests: XCTestCase {
         var energy: Double = 0
         let frames = 50
 
-        for f in 0 ..< frames {
+        for frameIndex in 0 ..< frames {
             // 440 Hz tone at moderate level
             var pcm = [Int16](repeating: 0, count: 160)
             for i in 0 ..< 160 {
-                let t = Double(f * 160 + i) / 8000.0
-                pcm[i] = Int16(8000.0 * sin(2.0 * .pi * 440.0 * t))
+                let time = Double(frameIndex * 160 + i) / 8_000.0
+                pcm[i] = Int16(8_000.0 * sin(2.0 * .pi * 440.0 * time))
             }
             var cells = [CChar](repeating: 0, count: 96)
             ambe_enc_frame(enc, &pcm, &cells)
@@ -31,8 +31,8 @@ final class RoundtripTests: XCTestCase {
             var out = [Int16](repeating: 0, count: 160)
             let errs = ambe_decode_frame(&ctx, &cells, &out, 3)
             totalErrors += errs
-            for s in out {
-                energy += Double(s) * Double(s)
+            for sample in out {
+                energy += Double(sample) * Double(sample)
             }
         }
 

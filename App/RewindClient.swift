@@ -2,6 +2,8 @@ import CryptoKit
 import Foundation
 import Network
 
+// MARK: - RewindConfig
+
 struct RewindConfig {
     var host: String
     var port: UInt16
@@ -10,10 +12,130 @@ struct RewindConfig {
     var talkgroups: [UInt32]
 }
 
+// MARK: - RewindClient
+
 // Speaks BrandMeister's Open DMR Terminal Protocol (Rewind framing).
 // Receive-only: logs in, subscribes to talkgroups, hands AMBE frames up.
+// swiftlint:disable:next type_body_length
 final class RewindClient {
-    private static let sign = Array("REWIND01".utf8)
+    // MARK: Lifecycle
+
+    init(config: RewindConfig) {
+        self.config = config
+    }
+
+    // MARK: Internal
+
+    var onState: ((LinkState) -> Void)?
+    var onLog: ((String, Bool) -> Void)?
+    var onCallStart: ((_ callID: UInt32, _ src: UInt32, _ dst: UInt32) -> Void)?
+    var onAudio: ((_ frames: [[CChar]], _ dst: UInt32) -> Void)?
+    var onCallEnd: ((_ callID: UInt32) -> Void)?
+
+    private(set) var state: LinkState = .idle {
+        didSet { onState?(state) }
+    }
+
+    func connect() {
+        guard let port = NWEndpoint.Port(rawValue: config.port) else {
+            state = .failed("bad port")
+            return
+        }
+        state = .connecting
+        log("connecting to \(config.host):\(config.port) (open terminal)")
+        let connection = NWConnection(host: NWEndpoint.Host(config.host), port: port, using: .udp)
+        conn = connection
+        connection.stateUpdateHandler = { [weak self] st in
+            guard let self else {
+                return
+            }
+            switch st {
+            case .ready:
+                log("udp socket ready")
+                state = .login
+                lastAck = Date()
+                sendKeepAlive()
+                startTimer()
+                receiveLoop()
+            case let .failed(err):
+                fail(err.localizedDescription)
+            case .cancelled:
+                state = .idle
+            default:
+                break
+            }
+        }
+        connection.start(queue: queue)
+    }
+
+    func disconnect() {
+        queue.async { [weak self] in
+            guard let self else {
+                return
+            }
+            timer?.cancel()
+            timer = nil
+            if state == .running {
+                log("→ close session")
+                sendFrame(.close, [])
+            }
+            conn?.cancel()
+            conn = nil
+            state = .idle
+        }
+    }
+
+    func startTransmit(dst: UInt32) {
+        queue.async { [weak self] in
+            guard let self, state == .running else {
+                return
+            }
+            log("TX start → TG \(dst)")
+            sendRT(.headerWithFLC, flcPayload(dst: dst, src: config.dmrID))
+        }
+    }
+
+    /// 27 bytes: three 9-byte on-air AMBE frames (60 ms of audio)
+    func sendTransmitAudio(_ bytes: [UInt8]) {
+        queue.async { [weak self] in
+            guard let self, state == .running, bytes.count == 27 else {
+                return
+            }
+            sendRT(.dmrAudioFrame, bytes)
+        }
+    }
+
+    func endTransmit(dst: UInt32) {
+        queue.async { [weak self] in
+            guard let self, state == .running else {
+                return
+            }
+            let flc = flcPayload(dst: dst, src: config.dmrID)
+            sendRT(.terminatorWithFLC, flc)
+            sendRT(.terminatorWithFLC, flc)
+            log("TX end")
+        }
+    }
+
+    /// Runtime subscription change while connected
+    func setSubscription(_ tg: UInt32, active: Bool) {
+        queue.async { [weak self] in
+            guard let self, state == .running else {
+                return
+            }
+            var payload = [UInt8](le32(7))
+            payload.append(contentsOf: le32(tg))
+            if active {
+                log("→ subscribe TG \(tg)")
+                sendFrame(.subscription, payload)
+            } else {
+                log("→ unsubscribe TG \(tg)")
+                sendFrame(.cancelling, payload)
+            }
+        }
+    }
+
+    // MARK: Private
 
     private enum MsgType: UInt16 {
         case keepAlive = 0x0000
@@ -33,6 +155,8 @@ final class RewindClient {
         case failureCode = 0x0929
     }
 
+    private static let sign = Array("REWIND01".utf8)
+
     private static let serviceOpenTerminal: UInt8 = 0x21
     private static let description = "DMRMonitor iOS 0.2"
 
@@ -50,76 +174,17 @@ final class RewindClient {
     private var currentCallID: UInt32 = 0
     private var currentDst: UInt32 = 0
 
-    private(set) var state: LinkState = .idle {
-        didSet { onState?(state) }
-    }
-
-    var onState: ((LinkState) -> Void)?
-    var onLog: ((String, Bool) -> Void)?
-    var onCallStart: ((_ callID: UInt32, _ src: UInt32, _ dst: UInt32) -> Void)?
-    var onAudio: ((_ frames: [[CChar]], _ dst: UInt32) -> Void)?
-    var onCallEnd: ((_ callID: UInt32) -> Void)?
-
-    init(config: RewindConfig) {
-        self.config = config
-    }
-
-    func connect() {
-        guard let port = NWEndpoint.Port(rawValue: config.port) else {
-            state = .failed("bad port")
-            return
-        }
-        state = .connecting
-        log("connecting to \(config.host):\(config.port) (open terminal)")
-        let c = NWConnection(host: NWEndpoint.Host(config.host), port: port, using: .udp)
-        conn = c
-        c.stateUpdateHandler = { [weak self] st in
-            guard let self else { return }
-            switch st {
-            case .ready:
-                self.log("udp socket ready")
-                self.state = .login
-                self.lastAck = Date()
-                self.sendKeepAlive()
-                self.startTimer()
-                self.receiveLoop()
-            case let .failed(err):
-                self.fail(err.localizedDescription)
-            case .cancelled:
-                self.state = .idle
-            default:
-                break
-            }
-        }
-        c.start(queue: queue)
-    }
-
-    func disconnect() {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.timer?.cancel()
-            self.timer = nil
-            if self.state == .running {
-                self.log("→ close session")
-                self.sendFrame(.close, [])
-            }
-            self.conn?.cancel()
-            self.conn = nil
-            self.state = .idle
-        }
-    }
-
     // MARK: - Outbound
 
     private func sendFrame(_ type: MsgType, _ payload: [UInt8]) {
-        var d = Data(Self.sign)
-        d.append(le16(type.rawValue))
-        d.append(le16(0)) // flags
-        d.append(le32(seq))
+        var packet = Data(Self.sign)
+        packet.append(le16(type.rawValue))
+        packet.append(le16(0)) // flags
+        packet.append(le32(seq))
         seq &+= 1
-        d.append(le16(UInt16(payload.count)))
-        d.append(contentsOf: payload)
-        conn?.send(content: d, completion: .contentProcessed { _ in })
+        packet.append(le16(UInt16(payload.count)))
+        packet.append(contentsOf: payload)
+        conn?.send(content: packet, completion: .contentProcessed { _ in })
     }
 
     private func sendKeepAlive() {
@@ -152,91 +217,53 @@ final class RewindClient {
     /// FLC body as pyspot builds it: flags, feature set, service options,
     /// then 3-byte BE dst and src
     private func flcPayload(dst: UInt32, src: UInt32) -> [UInt8] {
-        var p: [UInt8] = [0x00, 0x00, 0x04]
-        p.append(contentsOf: [UInt8((dst >> 16) & 0xFF), UInt8((dst >> 8) & 0xFF), UInt8(dst & 0xFF)])
-        p.append(contentsOf: [UInt8((src >> 16) & 0xFF), UInt8((src >> 8) & 0xFF), UInt8(src & 0xFF)])
-        p.append(contentsOf: [0x00, 0x00, 0x00])
-        return p
+        var payload: [UInt8] = [0x00, 0x00, 0x04]
+        payload.append(contentsOf: [UInt8((dst >> 16) & 0xFF), UInt8((dst >> 8) & 0xFF), UInt8(dst & 0xFF)])
+        payload.append(contentsOf: [UInt8((src >> 16) & 0xFF), UInt8((src >> 8) & 0xFF), UInt8(src & 0xFF)])
+        payload.append(contentsOf: [0x00, 0x00, 0x00])
+        return payload
     }
 
     private func sendRT(_ type: MsgType, _ payload: [UInt8]) {
-        var d = Data(Self.sign)
-        d.append(le16(type.rawValue))
-        d.append(le16(1)) // REWIND_FLAG_REAL_TIME_1
-        d.append(le32(rtSeq))
+        var packet = Data(Self.sign)
+        packet.append(le16(type.rawValue))
+        packet.append(le16(1)) // REWIND_FLAG_REAL_TIME_1
+        packet.append(le32(rtSeq))
         rtSeq &+= 1
-        d.append(le16(UInt16(payload.count)))
-        d.append(contentsOf: payload)
-        conn?.send(content: d, completion: .contentProcessed { _ in })
-    }
-
-    func startTransmit(dst: UInt32) {
-        queue.async { [weak self] in
-            guard let self, self.state == .running else { return }
-            self.log("TX start → TG \(dst)")
-            self.sendRT(.headerWithFLC, self.flcPayload(dst: dst, src: self.config.dmrID))
-        }
-    }
-
-    /// 27 bytes: three 9-byte on-air AMBE frames (60 ms of audio)
-    func sendTransmitAudio(_ bytes: [UInt8]) {
-        queue.async { [weak self] in
-            guard let self, self.state == .running, bytes.count == 27 else { return }
-            self.sendRT(.dmrAudioFrame, bytes)
-        }
-    }
-
-    func endTransmit(dst: UInt32) {
-        queue.async { [weak self] in
-            guard let self, self.state == .running else { return }
-            let flc = self.flcPayload(dst: dst, src: self.config.dmrID)
-            self.sendRT(.terminatorWithFLC, flc)
-            self.sendRT(.terminatorWithFLC, flc)
-            self.log("TX end")
-        }
-    }
-
-    /// Runtime subscription change while connected
-    func setSubscription(_ tg: UInt32, active: Bool) {
-        queue.async { [weak self] in
-            guard let self, self.state == .running else { return }
-            var payload = [UInt8](self.le32(7))
-            payload.append(contentsOf: self.le32(tg))
-            if active {
-                self.log("→ subscribe TG \(tg)")
-                self.sendFrame(.subscription, payload)
-            } else {
-                self.log("→ unsubscribe TG \(tg)")
-                self.sendFrame(.cancelling, payload)
-            }
-        }
+        packet.append(le16(UInt16(payload.count)))
+        packet.append(contentsOf: payload)
+        conn?.send(content: packet, completion: .contentProcessed { _ in })
     }
 
     private func startTimer() {
-        let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now() + 5, repeating: 5)
-        t.setEventHandler { [weak self] in
-            guard let self else { return }
-            if Date().timeIntervalSince(self.lastAck) > 15 {
-                self.fail("no reply from master")
+        let dispatchTimer = DispatchSource.makeTimerSource(queue: queue)
+        dispatchTimer.schedule(deadline: .now() + 5, repeating: 5)
+        dispatchTimer.setEventHandler { [weak self] in
+            guard let self else {
                 return
             }
-            self.sendKeepAlive()
+            if Date().timeIntervalSince(lastAck) > 15 {
+                fail("no reply from master")
+                return
+            }
+            sendKeepAlive()
         }
-        t.resume()
-        timer = t
+        dispatchTimer.resume()
+        timer = dispatchTimer
     }
 
     // MARK: - Inbound
 
     private func receiveLoop() {
         conn?.receiveMessage { [weak self] data, _, _, error in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             if let data {
-                self.handle(data)
+                handle(data)
             }
             if error == nil {
-                self.receiveLoop()
+                receiveLoop()
             }
         }
     }
@@ -244,7 +271,10 @@ final class RewindClient {
     private func handle(_ data: Data) {
         let b = [UInt8](data)
         guard b.count >= Self.sign.count + 10,
-              Array(b[0 ..< Self.sign.count]) == Self.sign else { return }
+              Array(b[0 ..< Self.sign.count]) == Self.sign
+        else {
+            return
+        }
 
         let base = Self.sign.count
         let rawType = UInt16(b[base]) | UInt16(b[base + 1]) << 8
@@ -259,18 +289,10 @@ final class RewindClient {
 
         switch type {
         case .challenge:
-            guard payload.count == 4 else {
-                fail("bad challenge token")
-                return
-            }
-            log("← challenge")
-            sendAuth(token: payload)
+            handleChallenge(payload)
 
         case .keepAlive:
-            lastAck = Date()
-            if state == .authorising || state == .login {
-                becomeRunning()
-            }
+            handleKeepAliveMessage()
 
         case .subscription:
             log("← subscription ack")
@@ -282,10 +304,7 @@ final class RewindClient {
             handleHeader(payload, seq: msgSeq)
 
         case .terminatorWithFLC:
-            if lastHeaderSeq != nil {
-                onCallEnd?(currentCallID)
-                lastHeaderSeq = nil
-            }
+            handleTerminator()
 
         case .dmrAudioFrame:
             handleAudio(payload)
@@ -293,18 +312,16 @@ final class RewindClient {
         case .dmrEmbeddedData:
             break
 
-        case .report, .busyNotice:
-            let text = String(decoding: payload, as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines.union(.controlCharacters))
-            if !text.isEmpty {
-                log("← master: \(text)")
-            }
+        case .report,
+             .busyNotice:
+            handleReportNotice(payload)
 
-        case .addressNotice, .bindingNotice:
+        case .addressNotice,
+             .bindingNotice:
             break
 
         case .failureCode:
-            log("← failure code \(payload.map { String(format: "%02x", $0) }.joined())", error: true)
+            handleFailureCode(payload)
 
         case .close:
             fail("master closed session")
@@ -314,19 +331,55 @@ final class RewindClient {
         }
     }
 
+    private func handleChallenge(_ payload: [UInt8]) {
+        guard payload.count == 4 else {
+            fail("bad challenge token")
+            return
+        }
+        log("← challenge")
+        sendAuth(token: payload)
+    }
+
+    private func handleKeepAliveMessage() {
+        lastAck = Date()
+        if state == .authorising || state == .login {
+            becomeRunning()
+        }
+    }
+
+    private func handleTerminator() {
+        if lastHeaderSeq != nil {
+            onCallEnd?(currentCallID)
+            lastHeaderSeq = nil
+        }
+    }
+
+    private func handleReportNotice(_ payload: [UInt8]) {
+        let text = (String(bytes: payload, encoding: .utf8) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.controlCharacters))
+        if !text.isEmpty {
+            log("← master: \(text)")
+        }
+    }
+
+    private func handleFailureCode(_ payload: [UInt8]) {
+        log("← failure code \(payload.map { String(format: "%02x", $0) }.joined())", error: true)
+    }
+
     private func handleHeader(_ payload: [UInt8], seq msgSeq: UInt32) {
-        guard payload.count >= 9 else { return }
+        guard payload.count >= 9 else {
+            return
+        }
         let dst = UInt32(payload[3]) << 16 | UInt32(payload[4]) << 8 | UInt32(payload[5])
         let src = UInt32(payload[6]) << 16 | UInt32(payload[7]) << 8 | UInt32(payload[8])
         let isGroup = payload[0] == 0
 
         // Headers repeat with consecutive sequence numbers; a gap (or the
         // first header after a terminator) marks a new call.
-        let isNew: Bool
-        if let last = lastHeaderSeq {
-            isNew = msgSeq &- last > 1
+        let isNew: Bool = if let last = lastHeaderSeq {
+            msgSeq &- last > 1
         } else {
-            isNew = true
+            true
         }
         lastHeaderSeq = msgSeq
 
@@ -338,11 +391,13 @@ final class RewindClient {
     }
 
     private func handleAudio(_ payload: [UInt8]) {
-        guard payload.count == 27 else { return }
+        guard payload.count == 27 else {
+            return
+        }
         var frames: [[CChar]] = []
         for i in stride(from: 0, to: 27, by: 9) {
-            if let f = VoiceBurst.ambeFrame(Array(payload[i ..< (i + 9)])) {
-                frames.append(f)
+            if let frame = VoiceBurst.ambeFrame(Array(payload[i ..< (i + 9)])) {
+                frames.append(frame)
             }
         }
         if !frames.isEmpty {
@@ -367,8 +422,8 @@ final class RewindClient {
         state = .failed(why)
     }
 
-    private func log(_ s: String, error: Bool = false) {
-        onLog?(s, error)
+    private func log(_ message: String, error: Bool = false) {
+        onLog?(message, error)
     }
 
     private func le16(_ v: UInt16) -> Data {

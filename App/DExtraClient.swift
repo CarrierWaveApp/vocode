@@ -1,27 +1,29 @@
 import Foundation
 import Network
 
+// MARK: - DExtraConfig
+
 struct DExtraConfig {
     var host: String
-    var port: UInt16 = 30001
+    var port: UInt16 = 30_001
     var callsign: String
     var module: Character
 }
+
+// MARK: - DExtraClient
 
 // Speaks the DExtra (XRF) linking protocol, which XLX reflectors accept.
 // Receive-only: links to one reflector module and hands 9-byte AMBE
 // frames up. Voice arrives as DSVT packets: 56-byte headers carrying the
 // callsign fields, 27-byte voice frames carrying AMBE plus slow data.
 final class DExtraClient {
-    private let config: DExtraConfig
-    private let queue = DispatchQueue(label: "dextra.net")
-    private var conn: NWConnection?
-    private var timer: DispatchSourceTimer?
-    private var lastHeard = Date()
+    // MARK: Lifecycle
 
-    private(set) var state: LinkState = .idle {
-        didSet { onState?(state) }
+    init(config: DExtraConfig) {
+        self.config = config
     }
+
+    // MARK: Internal
 
     var onState: ((LinkState) -> Void)?
     var onLog: ((String, Bool) -> Void)?
@@ -29,8 +31,8 @@ final class DExtraClient {
     var onAmbe: ((_ ambe: [UInt8]) -> Void)?
     var onCallEnd: ((_ streamID: UInt32) -> Void)?
 
-    init(config: DExtraConfig) {
-        self.config = config
+    private(set) var state: LinkState = .idle {
+        didSet { onState?(state) }
     }
 
     func connect() {
@@ -43,20 +45,22 @@ final class DExtraClient {
         let connection = NWConnection(host: NWEndpoint.Host(config.host), port: port, using: .udp)
         conn = connection
         connection.stateUpdateHandler = { [weak self] newState in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             switch newState {
             case .ready:
-                self.log("udp socket ready")
-                self.state = .login
-                self.lastHeard = Date()
-                self.log("→ link \(self.config.module)")
-                self.sendLink(module: self.config.module)
-                self.startTimer()
-                self.receiveLoop()
+                log("udp socket ready")
+                state = .login
+                lastHeard = Date()
+                log("→ link \(config.module)")
+                sendLink(module: config.module)
+                startTimer()
+                receiveLoop()
             case let .failed(err):
-                self.fail(err.localizedDescription)
+                fail(err.localizedDescription)
             case .cancelled:
-                self.state = .idle
+                state = .idle
             default:
                 break
             }
@@ -66,18 +70,28 @@ final class DExtraClient {
 
     func disconnect() {
         queue.async { [weak self] in
-            guard let self else { return }
-            self.timer?.cancel()
-            self.timer = nil
-            if self.state == .running || self.state == .login {
-                self.log("→ unlink")
-                self.sendLink(module: " ")
+            guard let self else {
+                return
             }
-            self.conn?.cancel()
-            self.conn = nil
-            self.state = .idle
+            timer?.cancel()
+            timer = nil
+            if state == .running || state == .login {
+                log("→ unlink")
+                sendLink(module: " ")
+            }
+            conn?.cancel()
+            conn = nil
+            state = .idle
         }
     }
+
+    // MARK: Private
+
+    private let config: DExtraConfig
+    private let queue = DispatchQueue(label: "dextra.net")
+    private var conn: NWConnection?
+    private var timer: DispatchSourceTimer?
+    private var lastHeard = Date()
 
     // MARK: - Outbound
 
@@ -105,13 +119,15 @@ final class DExtraClient {
         let timerSource = DispatchSource.makeTimerSource(queue: queue)
         timerSource.schedule(deadline: .now() + 3, repeating: 3)
         timerSource.setEventHandler { [weak self] in
-            guard let self else { return }
-            self.sendKeepAlive()
-            let quiet = Date().timeIntervalSince(self.lastHeard)
-            if self.state == .login, quiet > 8 {
-                self.fail("no answer from reflector")
-            } else if self.state == .running, quiet > 40 {
-                self.fail("link lost")
+            guard let self else {
+                return
+            }
+            sendKeepAlive()
+            let quiet = Date().timeIntervalSince(lastHeard)
+            if state == .login, quiet > 8 {
+                fail("no answer from reflector")
+            } else if state == .running, quiet > 40 {
+                fail("link lost")
             }
         }
         timerSource.resume()
@@ -122,12 +138,14 @@ final class DExtraClient {
 
     private func receiveLoop() {
         conn?.receiveMessage { [weak self] data, _, _, error in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             if let data {
-                self.handle(data)
+                handle(data)
             }
             if error == nil {
-                self.receiveLoop()
+                receiveLoop()
             }
         }
     }
@@ -145,7 +163,9 @@ final class DExtraClient {
             }
             return
         }
-        guard data.count >= 27, data.prefix(4) == Data("DSVT".utf8) else { return }
+        guard data.count >= 27, data.prefix(4) == Data("DSVT".utf8) else {
+            return
+        }
         let streamID = UInt32(data[12]) << 8 | UInt32(data[13])
         if data[4] == 0x10, data.count >= 56 {
             let myCall = field(data, 42, 8)

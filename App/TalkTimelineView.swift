@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - TalkBurst
+
 /// One transmission drawn on a station's lane.
 struct TalkBurst: Identifiable {
     let start: Date
@@ -11,6 +13,8 @@ struct TalkBurst: Identifiable {
         start
     }
 }
+
+// MARK: - StationLane
 
 /// One station row on the activity timeline. src 0 is ourselves.
 struct StationLane: Identifiable {
@@ -32,23 +36,21 @@ struct StationLane: Identifiable {
     }
 }
 
+// MARK: - TalkTimelineView
+
 /// Rolling last-30-seconds view of who is talking, one lane per station,
 /// derived from the heard list plus our own TX bursts. Tap a lane for the
 /// station detail sheet.
 struct TalkTimelineView: View {
-    @EnvironmentObject var model: MonitorModel
-    @EnvironmentObject var settings: Settings
-    @EnvironmentObject var notes: CallNotesStore
-    @State private var detail: StationLane?
+    // MARK: Internal
 
     static let window: TimeInterval = 30
     static let retention: TimeInterval = 300
     static let maxLanes = 8
-    private static let labelWidth: CGFloat = 92
 
-    private let palette: [Color] = [
-        CW.green, CW.amber, .purple, .cyan, CW.red, .pink, .mint, .indigo,
-    ]
+    @EnvironmentObject var model: MonitorModel
+    @EnvironmentObject var settings: Settings
+    @EnvironmentObject var notes: CallNotesStore
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { timeline in
@@ -69,6 +71,31 @@ struct TalkTimelineView: View {
         }
         .sheet(item: $detail) { lane in
             StationDetailView(lane: lane, color: laneColor(lane))
+        }
+    }
+
+    // MARK: Private
+
+    private static let labelWidth: CGFloat = 92
+
+    @State private var detail: StationLane?
+
+    private let palette: [Color] = [
+        CW.green, CW.amber, .purple, .cyan, CW.red, .pink, .mint, .indigo,
+    ]
+
+    private var axisLabels: some View {
+        HStack(spacing: 8) {
+            Color.clear.frame(width: Self.labelWidth, height: 1)
+            HStack {
+                Text("-30s")
+                Spacer()
+                Text("-15s")
+                Spacer()
+                Text("now")
+            }
+            .font(CW.mono(9))
+            .foregroundStyle(CW.dim)
         }
     }
 
@@ -100,10 +127,14 @@ struct TalkTimelineView: View {
             let windowStart = now.addingTimeInterval(-Self.window)
             for burst in lane.bursts {
                 let end = burst.end ?? now
-                guard end > windowStart else { continue }
+                guard end > windowStart else {
+                    continue
+                }
                 let startX = max(0, CGFloat(burst.start.timeIntervalSince(windowStart) / Self.window) * size.width)
                 let endX = min(size.width, CGFloat(end.timeIntervalSince(windowStart) / Self.window) * size.width)
-                guard endX > startX else { continue }
+                guard endX > startX else {
+                    continue
+                }
                 let rect = CGRect(x: startX, y: 2, width: max(2, endX - startX), height: size.height - 4)
                 canvas.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(laneColor(lane)))
             }
@@ -111,21 +142,6 @@ struct TalkTimelineView: View {
         .background(RoundedRectangle(cornerRadius: 4).fill(CW.raised))
         .overlay(alignment: .trailing) {
             Rectangle().fill(CW.red.opacity(0.7)).frame(width: 1)
-        }
-    }
-
-    private var axisLabels: some View {
-        HStack(spacing: 8) {
-            Color.clear.frame(width: Self.labelWidth, height: 1)
-            HStack {
-                Text("-30s")
-                Spacer()
-                Text("-15s")
-                Spacer()
-                Text("now")
-            }
-            .font(CW.mono(9))
-            .foregroundStyle(CW.dim)
         }
     }
 
@@ -157,7 +173,9 @@ struct TalkTimelineView: View {
             bySrc[entry.src, default: []].append(entry)
         }
         let others = bySrc.compactMap { src, entries -> StationLane? in
-            guard let latest = entries.first else { return nil }
+            guard let latest = entries.first else {
+                return nil
+            }
             return StationLane(
                 src: src,
                 label: latest.callsign ?? String(src),
@@ -175,22 +193,19 @@ struct TalkTimelineView: View {
     }
 }
 
+// MARK: - StationDetailView
+
 /// Enrichment sheet: radioid.net identity, callsign notes, and the
 /// station's recent transmissions.
 struct StationDetailView: View {
+    // MARK: Internal
+
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var notes: CallNotesStore
-    @Environment(\.dismiss) private var dismiss
+
     let lane: StationLane
     let color: Color
-    @State private var info: CallsignInfo?
-
-    /// Fall back to a lookup on the radioid-resolved callsign, which covers
-    /// our own lane when the callsign field is empty (Open Terminal mode)
-    private var displayedNote: CallNote? {
-        lane.note ?? info.flatMap { notes.note(for: $0.callsign) }
-    }
 
     var body: some View {
         NavigationStack {
@@ -257,12 +272,25 @@ struct StationDetailView: View {
                 }
             }
             .task {
-                guard lane.src != 0, lane.hasDMRID else { return }
+                guard lane.src != 0, lane.hasDMRID else {
+                    return
+                }
                 info = await model.stationInfo(lane.src)
             }
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
+    }
+
+    // MARK: Private
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var info: CallsignInfo?
+
+    /// Fall back to a lookup on the radioid-resolved callsign, which covers
+    /// our own lane when the callsign field is empty (Open Terminal mode)
+    private var displayedNote: CallNote? {
+        lane.note ?? info.flatMap { notes.note(for: $0.callsign) }
     }
 
     private func burstRow(_ burst: TalkBurst) -> some View {

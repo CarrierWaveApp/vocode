@@ -1,23 +1,28 @@
 import Foundation
 import SwiftUI
 
+// MARK: - ListenState
+
 enum ListenState: String, Codable {
-    case live, muted, off
+    case live
+    case muted
+    case off
+
+    // MARK: Internal
 
     var next: ListenState {
         switch self {
-        case .live: return .muted
-        case .muted: return .off
-        case .off: return .live
+        case .live: .muted
+        case .muted: .off
+        case .off: .live
         }
     }
 }
 
+// MARK: - Talkgroup
+
 struct Talkgroup: Codable, Identifiable, Equatable {
-    var id: UUID
-    var tg: UInt32
-    var name: String
-    var listen: ListenState
+    // MARK: Lifecycle
 
     init(id: UUID = UUID(), tg: UInt32, name: String = "", listen: ListenState = .live) {
         self.id = id
@@ -27,20 +32,45 @@ struct Talkgroup: Codable, Identifiable, Equatable {
     }
 
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        tg = try c.decode(UInt32.self, forKey: .tg)
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        listen = try c.decodeIfPresent(ListenState.self, forKey: .listen) ?? .live
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        tg = try container.decode(UInt32.self, forKey: .tg)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        listen = try container.decodeIfPresent(ListenState.self, forKey: .listen) ?? .live
     }
+
+    // MARK: Internal
+
+    var id: UUID
+    var tg: UInt32
+    var name: String
+    var listen: ListenState
 }
+
+// MARK: - Settings
 
 /// Persisted in UserDefaults via @AppStorage
 final class Settings: ObservableObject {
+    // MARK: Lifecycle
+
+    init() {
+        // Migrate the old free-text options field once; in single-talkgroup
+        // mode only the first entry starts live
+        if talkgroupsJSON.isEmpty {
+            let names: [UInt32: String] = [91: "Worldwide", 3_100: "USA Nationwide"]
+            talkgroupList = legacyTalkgroups.enumerated().map { i, tg in
+                Talkgroup(tg: tg, name: names[tg] ?? "",
+                          listen: (singleTG && i > 0) ? .off : .live)
+            }
+        }
+    }
+
+    // MARK: Internal
+
     @AppStorage("netMode") var netMode = "openterminal"
     @AppStorage("host") var host = "3103.master.brandmeister.network"
-    @AppStorage("port") var port = 62031
-    @AppStorage("otpPort") var otpPort = 54006
+    @AppStorage("port") var port = 62_031
+    @AppStorage("otpPort") var otpPort = 54_006
     @AppStorage("dmrID") var dmrID = ""
     @AppStorage("suffix") var suffix = "01"
     @AppStorage("password") var password = ""
@@ -79,80 +109,27 @@ final class Settings: ObservableObject {
     @AppStorage("buddiesJSON") var buddiesJSON = ""
     @AppStorage("netsJSON") var netsJSON = ""
 
-    init() {
-        // Migrate the old free-text options field once; in single-talkgroup
-        // mode only the first entry starts live
-        if talkgroupsJSON.isEmpty {
-            let names: [UInt32: String] = [91: "Worldwide", 3100: "USA Nationwide"]
-            talkgroupList = legacyTalkgroups.enumerated().map { i, tg in
-                Talkgroup(tg: tg, name: names[tg] ?? "",
-                          listen: (singleTG && i > 0) ? .off : .live)
-            }
-        }
-    }
-
     var talkgroupList: [Talkgroup] {
         get {
             guard let data = talkgroupsJSON.data(using: .utf8),
                   let list = try? JSONDecoder().decode([Talkgroup].self, from: data)
-            else { return [] }
+            else {
+                return []
+            }
             return list
         }
         set {
-            guard let data = try? JSONEncoder().encode(newValue) else { return }
-            talkgroupsJSON = String(decoding: data, as: UTF8.self)
-        }
-    }
-
-    func tgName(_ tg: UInt32) -> String? {
-        let name = talkgroupList.first { $0.tg == tg }?.name
-        return (name?.isEmpty ?? true) ? nil : name
-    }
-
-    // MARK: - Listen states and TX target
-
-    func listenState(_ tg: UInt32) -> ListenState? {
-        talkgroupList.first { $0.tg == tg }?.listen
-    }
-
-    func setListen(_ tg: UInt32, _ state: ListenState) {
-        var list = talkgroupList
-        guard let i = list.firstIndex(where: { $0.tg == tg }) else { return }
-        list[i].listen = state
-        if singleTG, state == .live {
-            for j in list.indices where j != i && list[j].listen != .off {
-                list[j].listen = .off
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
             }
-            txTargetTG = Int(tg)
+            talkgroupsJSON = String(bytes: data, encoding: .utf8) ?? ""
         }
-        talkgroupList = list
-    }
-
-    /// Collapse to one subscribed talkgroup: the TX target if it's live,
-    /// else the first live one. No-op when nothing is live.
-    func enforceSingleLive() {
-        var list = talkgroupList
-        let keep = list.firstIndex { $0.tg == UInt32(txTargetTG) && $0.listen == .live }
-            ?? list.firstIndex { $0.listen == .live }
-        guard let keep else { return }
-        var changed = false
-        for i in list.indices where i != keep && list[i].listen != .off {
-            list[i].listen = .off
-            changed = true
-        }
-        if changed {
-            talkgroupList = list
-        }
-        txTargetTG = Int(list[keep].tg)
-    }
-
-    func cycleListen(_ tg: UInt32) {
-        guard let current = listenState(tg) else { return }
-        setListen(tg, current.next)
     }
 
     var txTarget: Talkgroup? {
-        guard txTargetTG > 0 else { return nil }
+        guard txTargetTG > 0 else {
+            return nil
+        }
         return talkgroupList.first { $0.tg == UInt32(txTargetTG) }
     }
 
@@ -164,12 +141,17 @@ final class Settings: ObservableObject {
         get {
             guard let data = buddiesJSON.data(using: .utf8),
                   let list = try? JSONDecoder().decode([Buddy].self, from: data)
-            else { return [] }
+            else {
+                return []
+            }
             return list
         }
         set {
             guard let data = try? JSONEncoder().encode(newValue),
-                  let json = String(bytes: data, encoding: .utf8) else { return }
+                  let json = String(bytes: data, encoding: .utf8)
+            else {
+                return
+            }
             buddiesJSON = json
         }
     }
@@ -178,12 +160,17 @@ final class Settings: ObservableObject {
         get {
             guard let data = netsJSON.data(using: .utf8),
                   let list = try? JSONDecoder().decode([Net].self, from: data)
-            else { return [] }
+            else {
+                return []
+            }
             return list
         }
         set {
             guard let data = try? JSONEncoder().encode(newValue),
-                  let json = String(bytes: data, encoding: .utf8) else { return }
+                  let json = String(bytes: data, encoding: .utf8)
+            else {
+                return
+            }
             netsJSON = json
         }
     }
@@ -224,19 +211,13 @@ final class Settings: ObservableObject {
             .joined(separator: ";")
     }
 
-    /// Accepts both MMDVMHost options ("TS2_1=91;TS2_2=3100") and a bare
-    /// list ("91;3100" or "91,3100"); used only for one-time migration.
-    private var legacyTalkgroups: [UInt32] {
-        options.split(whereSeparator: { ";,".contains($0) }).compactMap { part in
-            let value = part.split(separator: "=").last ?? part
-            return UInt32(value.trimmingCharacters(in: .whitespaces))
-        }
-    }
-
     var rewindConfig: RewindConfig? {
         guard let id = UInt32(dmrID.trimmingCharacters(in: .whitespaces)),
               !host.isEmpty, !password.isEmpty,
-              otpPort > 0, otpPort < 65536 else { return nil }
+              otpPort > 0, otpPort < 65_536
+        else {
+            return nil
+        }
         return RewindConfig(
             host: host.trimmingCharacters(in: .whitespaces),
             port: UInt16(otpPort),
@@ -250,7 +231,9 @@ final class Settings: ObservableObject {
         let call = callsign.trimmingCharacters(in: .whitespaces).uppercased()
         let host = dstarHost.trimmingCharacters(in: .whitespaces)
         let mod = dstarModule.trimmingCharacters(in: .whitespaces).uppercased()
-        guard !call.isEmpty, !host.isEmpty, let module = mod.first else { return nil }
+        guard !call.isEmpty, !host.isEmpty, let module = mod.first else {
+            return nil
+        }
         return DExtraConfig(host: host, callsign: call, module: module)
     }
 
@@ -258,10 +241,12 @@ final class Settings: ObservableObject {
     var allstarConfig: IAXConfig? {
         let myNode = aslMyNode.trimmingCharacters(in: .whitespaces)
         let target = aslTarget.trimmingCharacters(in: .whitespaces)
-        guard !myNode.isEmpty, !aslPassword.isEmpty, !target.isEmpty else { return nil }
+        guard !myNode.isEmpty, !aslPassword.isEmpty, !target.isEmpty else {
+            return nil
+        }
         return IAXConfig(
             myNode: myNode, password: aslPassword, targetNode: target,
-            host: "", port: 4569,
+            host: "", port: 4_569,
             callsign: callsign.trimmingCharacters(in: .whitespaces).uppercased()
         )
     }
@@ -287,7 +272,10 @@ final class Settings: ObservableObject {
     var homebrewConfig: HomebrewConfig? {
         guard let id = repeaterID,
               !host.isEmpty, !password.isEmpty, !callsign.isEmpty,
-              port > 0, port < 65536 else { return nil }
+              port > 0, port < 65_536
+        else {
+            return nil
+        }
         return HomebrewConfig(
             host: host.trimmingCharacters(in: .whitespaces),
             port: UInt16(port),
@@ -297,5 +285,69 @@ final class Settings: ObservableObject {
             options: homebrewOptions,
             location: location
         )
+    }
+
+    func tgName(_ tg: UInt32) -> String? {
+        let name = talkgroupList.first { $0.tg == tg }?.name
+        return (name?.isEmpty ?? true) ? nil : name
+    }
+
+    // MARK: - Listen states and TX target
+
+    func listenState(_ tg: UInt32) -> ListenState? {
+        talkgroupList.first { $0.tg == tg }?.listen
+    }
+
+    func setListen(_ tg: UInt32, _ state: ListenState) {
+        var list = talkgroupList
+        guard let i = list.firstIndex(where: { $0.tg == tg }) else {
+            return
+        }
+        list[i].listen = state
+        if singleTG, state == .live {
+            for j in list.indices where j != i && list[j].listen != .off {
+                list[j].listen = .off
+            }
+            txTargetTG = Int(tg)
+        }
+        talkgroupList = list
+    }
+
+    /// Collapse to one subscribed talkgroup: the TX target if it's live,
+    /// else the first live one. No-op when nothing is live.
+    func enforceSingleLive() {
+        var list = talkgroupList
+        let keep = list.firstIndex { $0.tg == UInt32(txTargetTG) && $0.listen == .live }
+            ?? list.firstIndex { $0.listen == .live }
+        guard let keep else {
+            return
+        }
+        var changed = false
+        for i in list.indices where i != keep && list[i].listen != .off {
+            list[i].listen = .off
+            changed = true
+        }
+        if changed {
+            talkgroupList = list
+        }
+        txTargetTG = Int(list[keep].tg)
+    }
+
+    func cycleListen(_ tg: UInt32) {
+        guard let current = listenState(tg) else {
+            return
+        }
+        setListen(tg, current.next)
+    }
+
+    // MARK: Private
+
+    /// Accepts both MMDVMHost options ("TS2_1=91;TS2_2=3100") and a bare
+    /// list ("91;3100" or "91,3100"); used only for one-time migration.
+    private var legacyTalkgroups: [UInt32] {
+        options.split(whereSeparator: { ";,".contains($0) }).compactMap { part in
+            let value = part.split(separator: "=").last ?? part
+            return UInt32(value.trimmingCharacters(in: .whitespaces))
+        }
     }
 }

@@ -1,24 +1,11 @@
 import Foundation
 
+// MARK: - Net
+
 /// One scheduled net. `id` is the merge key for share/import: a club
 /// re-publishing its schedule updates in place instead of duplicating.
 struct Net: Codable, Identifiable, Equatable {
-    var id: UUID
-    var name: String
-    var network: String
-    var talkgroup: UInt32
-    /// Calendar weekday numbering: 1 = Sunday … 7 = Saturday
-    var weekdays: [Int]
-    // Wall-clock start in `timeZoneID` — nets are published in a fixed
-    // zone, so a device travelling doesn't shift the net
-    var hour: Int
-    var minute: Int
-    var timeZoneID: String
-    var durationMin: Int
-    // Reminder lead times in minutes; 0 = at start
-    var leads: [Int]
-    var enabled: Bool
-    var notes: String
+    // MARK: Lifecycle
 
     init(id: UUID = UUID(), name: String = "", network: String = "BrandMeister",
          talkgroup: UInt32 = 0, weekdays: [Int] = [], hour: Int = 19, minute: Int = 0,
@@ -58,6 +45,25 @@ struct Net: Codable, Identifiable, Equatable {
         notes = try values.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
 
+    // MARK: Internal
+
+    var id: UUID
+    var name: String
+    var network: String
+    var talkgroup: UInt32
+    /// Calendar weekday numbering: 1 = Sunday … 7 = Saturday
+    var weekdays: [Int]
+    // Wall-clock start in `timeZoneID` — nets are published in a fixed
+    // zone, so a device travelling doesn't shift the net
+    var hour: Int
+    var minute: Int
+    var timeZoneID: String
+    var durationMin: Int
+    // Reminder lead times in minutes; 0 = at start
+    var leads: [Int]
+    var enabled: Bool
+    var notes: String
+
     var timeZone: TimeZone {
         TimeZone(identifier: timeZoneID) ?? .current
     }
@@ -68,11 +74,15 @@ struct Net: Codable, Identifiable, Equatable {
     }
 }
 
+// MARK: - NetsFile
+
 /// Share/import envelope; import also accepts a bare [Net] array
 struct NetsFile: Codable {
     var version: Int
     var nets: [Net]
 }
+
+// MARK: - NetSchedule
 
 enum NetSchedule {
     /// Next start after `now`. Zone goes on the CALENDAR here;
@@ -83,7 +93,9 @@ enum NetSchedule {
     }
 
     static func occurrences(of net: Net, after now: Date, limit: Int) -> [Date] {
-        guard !net.weekdays.isEmpty, limit > 0 else { return [] }
+        guard !net.weekdays.isEmpty, limit > 0 else {
+            return []
+        }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = net.timeZone
         var found: [Date] = []
@@ -100,7 +112,9 @@ enum NetSchedule {
                     candidates.append(date)
                 }
             }
-            guard let next = candidates.min() else { break }
+            guard let next = candidates.min() else {
+                break
+            }
             found.append(next)
             cursor = next
         }
@@ -110,7 +124,9 @@ enum NetSchedule {
     /// Within [start, start + duration) of the most recent occurrence
     static func isLive(_ net: Net, at now: Date) -> Bool {
         let lookback = now.addingTimeInterval(-Double(net.durationMin) * 60)
-        guard let start = nextOccurrence(of: net, after: lookback) else { return false }
+        guard let start = nextOccurrence(of: net, after: lookback) else {
+            return false
+        }
         return start <= now && now < start.addingTimeInterval(Double(net.durationMin) * 60)
     }
 
@@ -126,6 +142,6 @@ enum NetSchedule {
         if minutes < 48 * 60 {
             return "in \(minutes / 60)h \(minutes % 60)m"
         }
-        return "in \(minutes / 1440)d"
+        return "in \(minutes / 1_440)d"
     }
 }

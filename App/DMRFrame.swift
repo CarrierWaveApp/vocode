@@ -1,11 +1,15 @@
 import Foundation
 
+// MARK: - FrameType
+
 enum FrameType: UInt8 {
     case voice = 0
     case voiceSync = 1
     case dataSync = 2
     case unknown = 3
 }
+
+// MARK: - DataType
 
 enum DataType: UInt8 {
     case voicePIHeader = 0
@@ -15,8 +19,12 @@ enum DataType: UInt8 {
     case other = 15
 }
 
+// MARK: - DMRDPacket
+
 /// One DMRD packet from the homebrew protocol
 struct DMRDPacket {
+    // MARK: Internal
+
     let seq: UInt8
     let src: UInt32
     let dst: UInt32
@@ -29,10 +37,18 @@ struct DMRDPacket {
     let streamID: UInt32
     let payload: [UInt8]
 
+    var isVoice: Bool {
+        frameType == .voice || frameType == .voiceSync
+    }
+
     static func parse(_ data: Data) -> DMRDPacket? {
-        guard data.count >= 53 else { return nil }
+        guard data.count >= 53 else {
+            return nil
+        }
         let b = [UInt8](data)
-        guard b[0] == 0x44, b[1] == 0x4D, b[2] == 0x52, b[3] == 0x44 else { return nil }
+        guard b[0] == 0x44, b[1] == 0x4D, b[2] == 0x52, b[3] == 0x44 else {
+            return nil
+        }
 
         let flags = b[15]
         let ft = FrameType(rawValue: (flags >> 4) & 0x03) ?? .unknown
@@ -53,9 +69,7 @@ struct DMRDPacket {
         )
     }
 
-    var isVoice: Bool {
-        frameType == .voice || frameType == .voiceSync
-    }
+    // MARK: Private
 
     private static func be24(_ b: [UInt8], _ i: Int) -> UInt32 {
         UInt32(b[i]) << 16 | UInt32(b[i + 1]) << 8 | UInt32(b[i + 2])
@@ -66,69 +80,46 @@ struct DMRDPacket {
     }
 }
 
+// MARK: - VoiceBurst
+
 /// 33-byte voice burst → three AMBE frames
 struct VoiceBurst {
-    /// Interleave schedule from DSD dmr_const.h
-    private static let rW = [
-        0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
-        0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 2,
-        0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2,
-    ]
-    private static let rX = [
-        23, 10, 22, 9, 21, 8, 20, 7, 19, 6, 18, 5,
-        17, 4, 16, 3, 15, 2, 14, 1, 13, 0, 12, 10,
-        11, 9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4,
-    ]
-    private static let rY = [
-        0, 2, 0, 2, 0, 2, 0, 2, 0, 3, 0, 3,
-        1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3,
-        1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3,
-    ]
-    private static let rZ = [
-        5, 3, 4, 2, 3, 1, 2, 0, 1, 13, 0, 12,
-        22, 11, 21, 10, 20, 9, 19, 8, 18, 7, 17, 6,
-        16, 5, 15, 4, 14, 3, 13, 2, 12, 1, 11, 0,
-    ]
-
-    let bytes: [UInt8]
+    // MARK: Lifecycle
 
     init?(_ bytes: [UInt8]) {
-        guard bytes.count >= 33 else { return nil }
+        guard bytes.count >= 33 else {
+            return nil
+        }
         self.bytes = Array(bytes[0 ..< 33])
     }
 
-    private func bit(_ i: Int) -> UInt8 {
-        (bytes[i >> 3] >> (7 - UInt8(i & 7))) & 1
-    }
+    // MARK: Internal
 
-    private func dibit(_ i: Int) -> UInt8 {
-        bit(2 * i) << 1 | bit(2 * i + 1)
-    }
-
-    private func place(_ f: inout [CChar], _ i: Int, _ d: UInt8) {
-        f[Self.rW[i] * 24 + Self.rX[i]] = CChar((d >> 1) & 1)
-        f[Self.rY[i] * 24 + Self.rZ[i]] = CChar(d & 1)
-    }
+    let bytes: [UInt8]
 
     /// One standalone 9-byte on-air AMBE frame (as delivered by the Open
     /// Terminal Protocol) → the same [4][24] mbelib cell layout.
     static func ambeFrame(_ b: [UInt8]) -> [CChar]? {
-        guard b.count == 9 else { return nil }
+        guard b.count == 9 else {
+            return nil
+        }
         func bit(_ i: Int) -> UInt8 {
             (b[i >> 3] >> (7 - UInt8(i & 7))) & 1
         }
-        var f = [CChar](repeating: 0, count: 96)
+        var frame = [CChar](repeating: 0, count: 96)
         for i in 0 ..< 36 {
-            let d = bit(2 * i) << 1 | bit(2 * i + 1)
-            f[rW[i] * 24 + rX[i]] = CChar((d >> 1) & 1)
-            f[rY[i] * 24 + rZ[i]] = CChar(d & 1)
+            let dibitValue = bit(2 * i) << 1 | bit(2 * i + 1)
+            frame[rW[i] * 24 + rX[i]] = CChar((dibitValue >> 1) & 1)
+            frame[rY[i] * 24 + rZ[i]] = CChar(dibitValue & 1)
         }
-        return f
+        return frame
     }
 
     /// Inverse of ambeFrame: mbelib cell layout → 9-byte on-air AMBE frame
     static func packFrame(_ cells: [CChar]) -> [UInt8]? {
-        guard cells.count == 96 else { return nil }
+        guard cells.count == 96 else {
+            return nil
+        }
         var b = [UInt8](repeating: 0, count: 9)
         for i in 0 ..< 36 {
             let hi = UInt8(bitPattern: Int8(cells[rW[i] * 24 + rX[i]])) & 1
@@ -164,5 +155,42 @@ struct VoiceBurst {
         }
 
         return [f1, f2, f3]
+    }
+
+    // MARK: Private
+
+    /// Interleave schedule from DSD dmr_const.h
+    private static let rW = [
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 2,
+        0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2,
+    ]
+    private static let rX = [
+        23, 10, 22, 9, 21, 8, 20, 7, 19, 6, 18, 5,
+        17, 4, 16, 3, 15, 2, 14, 1, 13, 0, 12, 10,
+        11, 9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4,
+    ]
+    private static let rY = [
+        0, 2, 0, 2, 0, 2, 0, 2, 0, 3, 0, 3,
+        1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3,
+        1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3,
+    ]
+    private static let rZ = [
+        5, 3, 4, 2, 3, 1, 2, 0, 1, 13, 0, 12,
+        22, 11, 21, 10, 20, 9, 19, 8, 18, 7, 17, 6,
+        16, 5, 15, 4, 14, 3, 13, 2, 12, 1, 11, 0,
+    ]
+
+    private func bit(_ i: Int) -> UInt8 {
+        (bytes[i >> 3] >> (7 - UInt8(i & 7))) & 1
+    }
+
+    private func dibit(_ i: Int) -> UInt8 {
+        bit(2 * i) << 1 | bit(2 * i + 1)
+    }
+
+    private func place(_ frame: inout [CChar], _ i: Int, _ dibitValue: UInt8) {
+        frame[Self.rW[i] * 24 + Self.rX[i]] = CChar((dibitValue >> 1) & 1)
+        frame[Self.rY[i] * 24 + Self.rZ[i]] = CChar(dibitValue & 1)
     }
 }

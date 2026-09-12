@@ -6,17 +6,7 @@ import Foundation
 /// Results are keyed by IP and flushed to the published dictionary in
 /// batches so an 800-target sweep doesn't invalidate the view per reply.
 final class ICMPPinger: ObservableObject {
-    @Published private(set) var results: [String: ProbeState] = [:]
-
-    private let queue = DispatchQueue(label: "icmp.ping")
-    private var sock: Int32 = -1
-    private var reader: DispatchSourceRead?
-    private var flusher: Timer?
-    private var pendingBySeq: [UInt16: (ip: String, sentAt: Date)] = [:]
-    private var fresh: [String: ProbeState] = [:]
-    private var nextSeq: UInt16 = 1
-
-    private static let timeout: TimeInterval = 2.5
+    // MARK: Lifecycle
 
     deinit {
         if sock >= 0 {
@@ -24,11 +14,17 @@ final class ICMPPinger: ObservableObject {
         }
     }
 
+    // MARK: Internal
+
+    @Published private(set) var results: [String: ProbeState] = [:]
+
     /// Called from the main thread
     func ping(_ ips: [String]) {
         cancel()
         let targets = Array(Set(ips)).filter { !$0.isEmpty }
-        guard !targets.isEmpty else { return }
+        guard !targets.isEmpty else {
+            return
+        }
         for address in targets {
             results[address] = .probing
         }
@@ -72,6 +68,34 @@ final class ICMPPinger: ObservableObject {
         }
     }
 
+    // MARK: Private
+
+    private static let timeout: TimeInterval = 2.5
+
+    private let queue = DispatchQueue(label: "icmp.ping")
+    private var sock: Int32 = -1
+    private var reader: DispatchSourceRead?
+    private var flusher: Timer?
+    private var pendingBySeq: [UInt16: (ip: String, sentAt: Date)] = [:]
+    private var fresh: [String: ProbeState] = [:]
+    private var nextSeq: UInt16 = 1
+
+    private static func checksum(_ bytes: [UInt8]) -> UInt16 {
+        var sum: UInt32 = 0
+        var index = 0
+        while index + 1 < bytes.count {
+            sum &+= UInt32(bytes[index]) << 8 | UInt32(bytes[index + 1])
+            index += 2
+        }
+        if index < bytes.count {
+            sum &+= UInt32(bytes[index]) << 8
+        }
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) &+ (sum >> 16)
+        }
+        return UInt16(~sum & 0xFFFF)
+    }
+
     // MARK: - Queue side
 
     private func sendAll(_ addresses: [String]) {
@@ -102,15 +126,21 @@ final class ICMPPinger: ObservableObject {
     }
 
     private func drainReplies() {
-        var buf = [UInt8](repeating: 0, count: 1024)
+        var buf = [UInt8](repeating: 0, count: 1_024)
         while true {
             let count = recv(sock, &buf, buf.count, 0)
-            guard count >= 28 else { return }
+            guard count >= 28 else {
+                return
+            }
             let ihl = Int(buf[0] & 0x0F) * 4
-            guard count >= ihl + 8, buf[ihl] == 0 else { continue }
+            guard count >= ihl + 8, buf[ihl] == 0 else {
+                continue
+            }
             let seq = UInt16(buf[ihl + 6]) << 8 | UInt16(buf[ihl + 7])
-            guard let target = pendingBySeq.removeValue(forKey: seq) else { continue }
-            let millis = Int(Date().timeIntervalSince(target.sentAt) * 1000)
+            guard let target = pendingBySeq.removeValue(forKey: seq) else {
+                continue
+            }
+            let millis = Int(Date().timeIntervalSince(target.sentAt) * 1_000)
             fresh[target.ip] = .reachable(millis: millis)
         }
     }
@@ -141,25 +171,11 @@ final class ICMPPinger: ObservableObject {
             batch = fresh
             fresh = [:]
         }
-        guard !batch.isEmpty else { return }
+        guard !batch.isEmpty else {
+            return
+        }
         for (address, state) in batch {
             results[address] = state
         }
-    }
-
-    private static func checksum(_ bytes: [UInt8]) -> UInt16 {
-        var sum: UInt32 = 0
-        var index = 0
-        while index + 1 < bytes.count {
-            sum &+= UInt32(bytes[index]) << 8 | UInt32(bytes[index + 1])
-            index += 2
-        }
-        if index < bytes.count {
-            sum &+= UInt32(bytes[index]) << 8
-        }
-        while sum >> 16 != 0 {
-            sum = (sum & 0xFFFF) &+ (sum >> 16)
-        }
-        return UInt16(~sum & 0xFFFF)
     }
 }

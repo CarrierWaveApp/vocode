@@ -2,11 +2,15 @@ import Foundation
 import SwiftUI
 import UserNotifications
 
+// MARK: - NetScheduler
+
 /// Schedules the repeating local reminders for nets. iOS silently keeps
 /// only the 64 soonest pending requests, so the expansion is capped
 /// deterministically in list order and surfaced in the UI.
 @MainActor
 enum NetScheduler {
+    // MARK: Internal
+
     static let maxRequests = 64
     static let joinCategory = "NET"
     static let joinAction = "NET_JOIN"
@@ -48,6 +52,13 @@ enum NetScheduler {
         return (requests.count, trimmed)
     }
 
+    static func pendingNetRequestCount() async -> Int {
+        let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
+        return pending.filter { $0.identifier.hasPrefix("net.") }.count
+    }
+
+    // MARK: Private
+
     private static func request(
         for net: Net, weekday: Int, lead: Int, now: Date, tgLabel: String?
     ) -> UNNotificationRequest? {
@@ -88,19 +99,19 @@ enum NetScheduler {
             trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
         )
     }
-
-    static func pendingNetRequestCount() async -> Int {
-        let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
-        return pending.filter { $0.identifier.hasPrefix("net.") }.count
-    }
 }
+
+// MARK: - NetJoin
 
 /// One-tap join: make the net's talkgroup live and get audio flowing
 @MainActor
 enum NetJoin {
     static func join(talkgroup: UInt32, name: String, settings: Settings, model: MonitorModel) {
         guard talkgroup > 0, settings.netMode != "dstar",
-              settings.netMode != "allstar" else { return }
+              settings.netMode != "allstar"
+        else {
+            return
+        }
         if !settings.talkgroupList.contains(where: { $0.tg == talkgroup }) {
             // .off first: setListen bails on a TG it can't find
             settings.talkgroupList.append(Talkgroup(tg: talkgroup, name: name, listen: .off))
@@ -116,12 +127,15 @@ enum NetJoin {
     }
 }
 
+// MARK: - NetJoinRelay
+
 /// Root-level relay: consumes join intents from notification taps. Lives
 /// on the app root (never unloaded) rather than a lazy List section.
 struct NetJoinRelay: ViewModifier {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
-    @Environment(\.scenePhase) private var scenePhase
 
     func body(content: Content) -> some View {
         content
@@ -138,10 +152,16 @@ struct NetJoinRelay: ViewModifier {
             }
     }
 
+    // MARK: Private
+
+    @Environment(\.scenePhase) private var scenePhase
+
     private func drain() {
         let defaults = UserDefaults.standard
         let stored = defaults.integer(forKey: NetScheduler.pendingTGKey)
-        guard stored > 0 else { return }
+        guard stored > 0 else {
+            return
+        }
         let name = defaults.string(forKey: NetScheduler.pendingNameKey) ?? ""
         defaults.removeObject(forKey: NetScheduler.pendingTGKey)
         defaults.removeObject(forKey: NetScheduler.pendingNameKey)

@@ -4,6 +4,8 @@ import CryptoKit
 import Foundation
 import Network
 
+// MARK: - IAXConfig
+
 struct IAXConfig {
     var myNode: String // our AllStarLink node number
     var password: String // that node's password (registration secret)
@@ -12,8 +14,10 @@ struct IAXConfig {
     var port: UInt16 // resolved target port, usually 4569
     var callsign: String
     var registrar = "register.allstarlink.org"
-    var registrarPort: UInt16 = 4569
+    var registrarPort: UInt16 = 4_569
 }
+
+// MARK: - IAX
 
 /// The RFC 5456 subset AllStar needs: MD5 registration with the ASL
 /// registrar (so other nodes can verify our node number), then one
@@ -54,6 +58,8 @@ private enum IAX {
     static let authMD5: UInt16 = 2
 }
 
+// MARK: - IAXFullFrame
+
 private struct IAXFullFrame {
     var srcCall: UInt16
     var dstCall: UInt16
@@ -70,10 +76,14 @@ private struct IAXFullFrame {
     }
 
     static func parse(_ raw: Data) -> IAXFullFrame? {
-        guard raw.count >= 12 else { return nil }
+        guard raw.count >= 12 else {
+            return nil
+        }
         let bytes = [UInt8](raw)
         let word0 = UInt16(bytes[0]) << 8 | UInt16(bytes[1])
-        guard word0 & 0x8000 != 0 else { return nil }
+        guard word0 & 0x8000 != 0 else {
+            return nil
+        }
         let rawSub = bytes[11]
         let sub: UInt32 = rawSub & 0x80 != 0 ? 1 << UInt32(rawSub & 0x7F) : UInt32(rawSub)
         return IAXFullFrame(
@@ -87,9 +97,11 @@ private struct IAXFullFrame {
     }
 }
 
+// MARK: - IAXIEs
+
 /// TLV information-element blob from a full frame
 private struct IAXIEs {
-    private var fields: [UInt8: Data] = [:]
+    // MARK: Lifecycle
 
     init(_ data: Data) {
         var cursor = data.startIndex
@@ -97,11 +109,15 @@ private struct IAXIEs {
             let key = data[cursor]
             let len = Int(data[cursor + 1])
             let start = cursor + 2
-            guard start + len <= data.endIndex else { break }
+            guard start + len <= data.endIndex else {
+                break
+            }
             fields[key] = data.subdata(in: start ..< start + len)
             cursor = start + len
         }
     }
+
+    // MARK: Internal
 
     subscript(_ key: UInt8) -> Data? {
         fields[key]
@@ -112,32 +128,29 @@ private struct IAXIEs {
     }
 
     func u16(_ key: UInt8) -> UInt16? {
-        guard let raw = fields[key], raw.count == 2 else { return nil }
+        guard let raw = fields[key], raw.count == 2 else {
+            return nil
+        }
         return UInt16(raw[raw.startIndex]) << 8 | UInt16(raw[raw.startIndex + 1])
     }
+
+    // MARK: Private
+
+    private var fields: [UInt8: Data] = [:]
 }
+
+// MARK: - IAXDialog
 
 /// One IAX2 dialog: a UDP socket to one peer, our call number, and the
 /// sequence/timestamp state the wire format needs.
 private final class IAXDialog {
-    let conn: NWConnection
-    let localCall: UInt16
-    var remoteCall: UInt16 = 0
-    var oseq: UInt8 = 0
-    var iseq: UInt8 = 0
-    let epoch = Date()
-    var lastHeard = Date()
-
-    var onFull: ((IAXFullFrame) -> Void)?
-    var onMini: ((Data) -> Void)?
-    var onFailed: ((String) -> Void)?
-    var onReady: (() -> Void)?
+    // MARK: Lifecycle
 
     init(host: String, port: UInt16, localCall: UInt16, queue: DispatchQueue) {
         self.localCall = localCall
         conn = NWConnection(
             host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(rawValue: port) ?? 4569,
+            port: NWEndpoint.Port(rawValue: port) ?? 4_569,
             using: .udp
         )
         conn.stateUpdateHandler = { [weak self] state in
@@ -154,37 +167,27 @@ private final class IAXDialog {
         conn.start(queue: queue)
     }
 
-    func cancel() {
-        conn.cancel()
-    }
+    // MARK: Internal
+
+    let conn: NWConnection
+    let localCall: UInt16
+    var remoteCall: UInt16 = 0
+    var oseq: UInt8 = 0
+    var iseq: UInt8 = 0
+    let epoch = Date()
+    var lastHeard = Date()
+
+    var onFull: ((IAXFullFrame) -> Void)?
+    var onMini: ((Data) -> Void)?
+    var onFailed: ((String) -> Void)?
+    var onReady: (() -> Void)?
 
     var nowMs: UInt32 {
-        UInt32(truncatingIfNeeded: Int64(Date().timeIntervalSince(epoch) * 1000))
+        UInt32(truncatingIfNeeded: Int64(Date().timeIntervalSince(epoch) * 1_000))
     }
 
-    private func receiveLoop() {
-        conn.receiveMessage { [weak self] data, _, _, error in
-            guard let self else { return }
-            if let data, !data.isEmpty {
-                self.lastHeard = Date()
-                self.dispatch(data)
-            }
-            if error == nil {
-                self.receiveLoop()
-            }
-        }
-    }
-
-    private func dispatch(_ data: Data) {
-        let word0 = UInt16(data[data.startIndex]) << 8 | UInt16(data[data.startIndex + 1])
-        if word0 & 0x8000 != 0 {
-            guard let frame = IAXFullFrame.parse(data) else { return }
-            onFull?(frame)
-        } else if word0 != 0, data.count > 4 {
-            // Mini voice frame: 16-bit call number, 16-bit timestamp, payload
-            onMini?(data.subdata(in: data.startIndex + 4 ..< data.endIndex))
-        }
-        // word0 == 0 is a meta/trunk frame; we never negotiate trunking
+    func cancel() {
+        conn.cancel()
     }
 
     func sendFull(type: UInt8, sub: UInt32, ies: [(UInt8, Data)] = [],
@@ -234,7 +237,9 @@ private final class IAXDialog {
     /// Advance iseq for a counting frame; duplicates get re-ACKed by the
     /// caller but must not advance state twice.
     func noteReceived(_ frame: IAXFullFrame) -> Bool {
-        guard frame.countsForSeq else { return true }
+        guard frame.countsForSeq else {
+            return true
+        }
         if frame.oseq == iseq {
             iseq &+= 1
             return true
@@ -243,45 +248,58 @@ private final class IAXDialog {
         let behind = iseq &- frame.oseq
         return behind == 0 || behind > 128
     }
+
+    // MARK: Private
+
+    private func receiveLoop() {
+        conn.receiveMessage { [weak self] data, _, _, error in
+            guard let self else {
+                return
+            }
+            if let data, !data.isEmpty {
+                lastHeard = Date()
+                dispatch(data)
+            }
+            if error == nil {
+                receiveLoop()
+            }
+        }
+    }
+
+    private func dispatch(_ data: Data) {
+        let word0 = UInt16(data[data.startIndex]) << 8 | UInt16(data[data.startIndex + 1])
+        if word0 & 0x8000 != 0 {
+            guard let frame = IAXFullFrame.parse(data) else {
+                return
+            }
+            onFull?(frame)
+        } else if word0 != 0, data.count > 4 {
+            // Mini voice frame: 16-bit call number, 16-bit timestamp, payload
+            onMini?(data.subdata(in: data.startIndex + 4 ..< data.endIndex))
+        }
+        // word0 == 0 is a meta/trunk frame; we never negotiate trunking
+    }
 }
 
-// MARK: - Client
+// MARK: - IAXClient
 
 // swiftlint:disable:next type_body_length
 final class IAXClient {
-    private let config: IAXConfig
-    private let queue = DispatchQueue(label: "allstar.iax")
-    private var reg: IAXDialog?
-    private var call: IAXDialog?
-    private var timer: DispatchSourceTimer?
-    private var regTimer: DispatchSourceTimer?
-    private var nextCallNumber: UInt16 = 1
+    // MARK: Lifecycle
 
-    private(set) var state: LinkState = .idle {
-        didSet { onState?(state) }
+    init(config: IAXConfig) {
+        self.config = config
     }
+
+    // MARK: Internal
 
     var onState: ((LinkState) -> Void)?
     var onLog: ((String, Bool) -> Void)?
     var onRemoteKey: ((Bool) -> Void)?
     var onAudio: (([Float]) -> Void)?
 
-    // RX keying: oldkey has no explicit signal, so voice activity opens a
-    // transmission and ~600 ms of silence closes it. Newkey partners also
-    // send KEY/UNKEY control frames, which we honor when present.
-    private var remoteKeyed = false
-    private var lastVoice = Date.distantPast
-
-    // TX
-    private var transmitting = false
-    private var sentTxFull = false
-    private var lastTxTimestamp: UInt32 = 0
-
-    private var registered = false
-    private var stateSince = Date()
-
-    init(config: IAXConfig) {
-        self.config = config
+    private(set) var state: LinkState = .idle {
+        didSet { onState?(state) }
     }
 
     func connect() {
@@ -303,6 +321,71 @@ final class IAXClient {
         }
     }
 
+    // MARK: - Transmit
+
+    func startTransmit() {
+        queue.async { [self] in
+            guard state == .running else {
+                return
+            }
+            transmitting = true
+            sentTxFull = false
+        }
+    }
+
+    /// 160 samples of 8 kHz S16 from the mic, every 20 ms
+    func sendVoice(_ pcm: [Int16]) {
+        queue.async { [self] in
+            guard transmitting, let call, state == .running else {
+                return
+            }
+            let payload = Ulaw.encode(pcm)
+            let stamp = call.nowMs
+            // A full voice frame opens each transmission (it pins the codec
+            // and the timestamp base) and re-pins on 16-bit wrap
+            if !sentTxFull || (stamp & 0xFFFF) < (lastTxTimestamp & 0xFFFF) {
+                sentTxFull = true
+                call.sendFull(type: IAX.typeVoice, sub: IAX.formatUlaw,
+                              timestamp: stamp, payload: payload)
+            } else {
+                call.sendMini(timestamp: UInt16(stamp & 0xFFFF), payload: payload)
+            }
+            lastTxTimestamp = stamp
+        }
+    }
+
+    func endTransmit() {
+        queue.async { [self] in
+            transmitting = false
+        }
+    }
+
+    // MARK: Private
+
+    private let config: IAXConfig
+    private let queue = DispatchQueue(label: "allstar.iax")
+    private var reg: IAXDialog?
+    private var call: IAXDialog?
+    private var timer: DispatchSourceTimer?
+    private var regTimer: DispatchSourceTimer?
+    private var nextCallNumber: UInt16 = 1
+
+    // RX keying: oldkey has no explicit signal, so voice activity opens a
+    // transmission and ~600 ms of silence closes it. Newkey partners also
+    // send KEY/UNKEY control frames, which we honor when present.
+    private var remoteKeyed = false
+    private var lastVoice = Date.distantPast
+
+    // TX
+    private var transmitting = false
+    private var sentTxFull = false
+    private var lastTxTimestamp: UInt32 = 0
+
+    private var registered = false
+    private var stateSince = Date()
+
+    private var lastPing = Date.distantPast
+
     // MARK: - Registration
 
     private func startRegistration() {
@@ -318,7 +401,9 @@ final class IAXClient {
     }
 
     private func sendRegReq(auth challenge: String?) {
-        guard let reg else { return }
+        guard let reg else {
+            return
+        }
         var ies: [(UInt8, Data)] = [
             (IAX.ieUsername, Data(config.myNode.utf8)),
             (IAX.ieRefresh, Data([0, 60])),
@@ -332,9 +417,13 @@ final class IAXClient {
     }
 
     private func handleRegFrame(_ frame: IAXFullFrame) {
-        guard let reg else { return }
+        guard let reg else {
+            return
+        }
         reg.remoteCall = frame.srcCall
-        guard reg.noteReceived(frame), frame.type == IAX.typeIAX else { return }
+        guard reg.noteReceived(frame), frame.type == IAX.typeIAX else {
+            return
+        }
         let ies = IAXIEs(frame.data)
         switch frame.sub {
         case IAX.callToken:
@@ -415,9 +504,10 @@ final class IAXClient {
         call?.sendFull(type: IAX.typeIAX, sub: IAX.new, ies: newIEs(token: token))
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     private func handleCallFrame(_ frame: IAXFullFrame) {
-        guard let call else { return }
+        guard let call else {
+            return
+        }
         if call.remoteCall == 0, frame.srcCall != 0 {
             call.remoteCall = frame.srcCall
         }
@@ -452,7 +542,6 @@ final class IAXClient {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     private func handleCallIAX(_ frame: IAXFullFrame, ies: IAXIEs, on call: IAXDialog) {
         switch frame.sub {
         case IAX.callToken:
@@ -481,7 +570,8 @@ final class IAXClient {
             call.sendFull(type: IAX.typeIAX, sub: IAX.pong, timestamp: frame.timestamp)
         case IAX.lagrq:
             call.sendFull(type: IAX.typeIAX, sub: IAX.lagrp, timestamp: frame.timestamp)
-        case IAX.pong, IAX.lagrp:
+        case IAX.pong,
+             IAX.lagrp:
             call.ack(frame)
         case IAX.inval:
             fail("node invalidated the call")
@@ -506,9 +596,12 @@ final class IAXClient {
             setRemoteKeyed(false)
         case IAX.ctrlHangup:
             fail("node hung up")
-        case IAX.ctrlBusy, IAX.ctrlCongestion:
+        case IAX.ctrlBusy,
+             IAX.ctrlCongestion:
             fail("node busy")
-        case IAX.ctrlRinging, IAX.ctrlProgress, IAX.ctrlProceeding:
+        case IAX.ctrlRinging,
+             IAX.ctrlProgress,
+             IAX.ctrlProceeding:
             break
         default:
             break
@@ -516,7 +609,9 @@ final class IAXClient {
     }
 
     private func handleVoice(_ payload: Data) {
-        guard !payload.isEmpty else { return }
+        guard !payload.isEmpty else {
+            return
+        }
         lastVoice = Date()
         if !remoteKeyed {
             setRemoteKeyed(true)
@@ -529,44 +624,11 @@ final class IAXClient {
     }
 
     private func setRemoteKeyed(_ keyed: Bool) {
-        guard keyed != remoteKeyed else { return }
+        guard keyed != remoteKeyed else {
+            return
+        }
         remoteKeyed = keyed
         onRemoteKey?(keyed)
-    }
-
-    // MARK: - Transmit
-
-    func startTransmit() {
-        queue.async { [self] in
-            guard state == .running else { return }
-            transmitting = true
-            sentTxFull = false
-        }
-    }
-
-    /// 160 samples of 8 kHz S16 from the mic, every 20 ms
-    func sendVoice(_ pcm: [Int16]) {
-        queue.async { [self] in
-            guard transmitting, let call, state == .running else { return }
-            let payload = Ulaw.encode(pcm)
-            let stamp = call.nowMs
-            // A full voice frame opens each transmission (it pins the codec
-            // and the timestamp base) and re-pins on 16-bit wrap
-            if !sentTxFull || (stamp & 0xFFFF) < (lastTxTimestamp & 0xFFFF) {
-                sentTxFull = true
-                call.sendFull(type: IAX.typeVoice, sub: IAX.formatUlaw,
-                              timestamp: stamp, payload: payload)
-            } else {
-                call.sendMini(timestamp: UInt16(stamp & 0xFFFF), payload: payload)
-            }
-            lastTxTimestamp = stamp
-        }
-    }
-
-    func endTransmit() {
-        queue.async { [self] in
-            transmitting = false
-        }
     }
 
     // MARK: - Plumbing
@@ -589,8 +651,6 @@ final class IAXClient {
         timer = timerSource
     }
 
-    private var lastPing = Date.distantPast
-
     private func tick() {
         // Voice-activity unkey
         if remoteKeyed, Date().timeIntervalSince(lastVoice) > 0.6 {
@@ -600,7 +660,8 @@ final class IAXClient {
         switch state {
         case .connecting where stuck > 10:
             fail("registration timed out")
-        case .login where stuck > 8, .authorising where stuck > 8:
+        case .login where stuck > 8,
+             .authorising where stuck > 8:
             fail("no answer from node")
         case .configuring where stuck > 10:
             fail("node accepted but never answered")
@@ -619,7 +680,9 @@ final class IAXClient {
     }
 
     private func setState(_ new: LinkState) {
-        guard new != state else { return }
+        guard new != state else {
+            return
+        }
         stateSince = Date()
         state = new
     }
@@ -641,7 +704,9 @@ final class IAXClient {
     }
 
     private func fail(_ why: String) {
-        guard state != .idle else { return }
+        guard state != .idle else {
+            return
+        }
         log(why, error: true)
         teardown()
         setState(.failed(why))

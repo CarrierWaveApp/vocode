@@ -11,7 +11,9 @@ extension MonitorModel {
               settings.netMode == "openterminal"
               || settings.host.contains("brandmeister"),
               Date().timeIntervalSince(lastHistorySeed) > 60
-        else { return }
+        else {
+            return
+        }
         lastHistorySeed = Date()
 
         // One-shot: connect, let the backlog (searchHouse) and a few live
@@ -26,14 +28,18 @@ extension MonitorModel {
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             feed.disconnect()
-            guard let self, self.historyFeed === feed else { return }
-            self.historyFeed = nil
-            self.seedHistory(collected)
+            guard let self, historyFeed === feed else {
+                return
+            }
+            historyFeed = nil
+            seedHistory(collected)
         }
     }
 
     private func seedHistory(_ history: [BMCall]) {
-        guard !history.isEmpty else { return }
+        guard !history.isEmpty else {
+            return
+        }
         let stamp = Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 100_000)
         var counter: UInt32 = 0xF000_0000 | UInt32(stamp)
         var list = heard
@@ -43,7 +49,9 @@ extension MonitorModel {
                 entry.src == call.sourceID
                     && abs(entry.started.timeIntervalSince(call.began)) < 2
             }
-            guard !duplicate else { continue }
+            guard !duplicate else {
+                continue
+            }
             counter &+= 1
             var entry = HeardEntry(
                 id: counter, src: call.sourceID, dst: call.destinationID,
@@ -59,7 +67,9 @@ extension MonitorModel {
             list.append(entry)
             added += 1
         }
-        guard added > 0 else { return }
+        guard added > 0 else {
+            return
+        }
         list.sort { $0.started > $1.started }
         if list.count > 200 {
             list = Array(list.prefix(200))
@@ -73,7 +83,9 @@ extension MonitorModel {
             Task { [entryID = entry.id, src = entry.src] in
                 guard let info = await stationInfo(src),
                       let index = heard.firstIndex(where: { $0.id == entryID })
-                else { return }
+                else {
+                    return
+                }
                 heard[index].callsign = info.callsign
                 heard[index].note = notes.note(for: info.callsign)
                 await geocode(streamID: entryID, callsign: info.callsign)

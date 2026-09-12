@@ -3,22 +3,11 @@ import SwiftUI
 /// Per-net editor. Edits write straight into settings.netList; reminders
 /// are rebuilt once on the way out, never per keystroke.
 struct NetEditView: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
+
     let netID: UUID
-
-    private static let zones: [String] = {
-        var ids = [
-            "UTC", "America/New_York", "America/Chicago", "America/Denver",
-            "America/Phoenix", "America/Los_Angeles", "America/Anchorage",
-            "Pacific/Honolulu", "Europe/London",
-        ]
-        if !ids.contains(TimeZone.current.identifier) {
-            ids.append(TimeZone.current.identifier)
-        }
-        return ids
-    }()
-
-    private static let dayLetters = ["S", "M", "T", "W", "T", "F", "S"]
 
     var body: some View {
         Form {
@@ -77,22 +66,24 @@ struct NetEditView: View {
         }
     }
 
+    // MARK: Private
+
+    private static let zones: [String] = {
+        var ids = [
+            "UTC", "America/New_York", "America/Chicago", "America/Denver",
+            "America/Phoenix", "America/Los_Angeles", "America/Anchorage",
+            "Pacific/Honolulu", "Europe/London",
+        ]
+        if !ids.contains(TimeZone.current.identifier) {
+            ids.append(TimeZone.current.identifier)
+        }
+        return ids
+    }()
+
+    private static let dayLetters = ["S", "M", "T", "W", "T", "F", "S"]
+
     private var net: Net {
         settings.netList.first(where: { $0.id == netID }) ?? Net(id: netID)
-    }
-
-    private func update(_ change: (inout Net) -> Void) {
-        var list = settings.netList
-        guard let index = list.firstIndex(where: { $0.id == netID }) else { return }
-        change(&list[index])
-        settings.netList = list
-    }
-
-    private func binding(_ keyPath: WritableKeyPath<Net, String>) -> Binding<String> {
-        Binding(
-            get: { net[keyPath: keyPath] },
-            set: { value in update { $0[keyPath: keyPath] = value } }
-        )
     }
 
     private var durationBinding: Binding<Int> {
@@ -114,7 +105,7 @@ struct NetEditView: View {
                 var calendar = Calendar(identifier: .gregorian)
                 calendar.timeZone = net.timeZone
                 return calendar.date(
-                    from: DateComponents(year: 2000, month: 1, day: 1,
+                    from: DateComponents(year: 2_000, month: 1, day: 1,
                                          hour: net.hour, minute: net.minute)
                 ) ?? Date()
             },
@@ -173,5 +164,21 @@ struct NetEditView: View {
                 }
             }
         ))
+    }
+
+    private func update(_ change: (inout Net) -> Void) {
+        var list = settings.netList
+        guard let index = list.firstIndex(where: { $0.id == netID }) else {
+            return
+        }
+        change(&list[index])
+        settings.netList = list
+    }
+
+    private func binding(_ keyPath: WritableKeyPath<Net, String>) -> Binding<String> {
+        Binding(
+            get: { net[keyPath: keyPath] },
+            set: { value in update { $0[keyPath: keyPath] = value } }
+        )
     }
 }

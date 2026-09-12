@@ -1,20 +1,8 @@
-@testable import DMRMonitor
 import XCTest
+@testable import DMRMonitor
 
 final class MicConditionerTests: XCTestCase {
-    private func sine(_ frequency: Float, amplitude: Float, frames: Int) -> [[Int16]] {
-        (0 ..< frames).map { frame in
-            (0 ..< 160).map { index in
-                let sampleIndex = Float(frame * 160 + index)
-                let value = amplitude * sin(2 * .pi * frequency * sampleIndex / 8000)
-                return Int16(max(-32767, min(32767, value * 32767)))
-            }
-        }
-    }
-
-    private func peak(_ frame: [Int16]) -> Float {
-        Float(frame.map { abs(Int32($0)) }.max() ?? 0) / 32767
-    }
+    // MARK: Internal
 
     func testFixedMakeupGainApplies() {
         var conditioner = MicConditioner()
@@ -62,5 +50,21 @@ final class MicConditionerTests: XCTestCase {
             frame = [Int16](repeating: 12, count: 160)
             XCTAssertLessThan(peak(copy), 0.05, "near-silence must stay near-silent")
         }
+    }
+
+    // MARK: Private
+
+    private func sine(_ frequency: Float, amplitude: Float, frames: Int) -> [[Int16]] {
+        (0 ..< frames).map { frame in
+            (0 ..< 160).map { index in
+                let sampleIndex = Float(frame * 160 + index)
+                let value = amplitude * sin(2 * .pi * frequency * sampleIndex / 8_000)
+                return Int16(max(-32_767, min(32_767, value * 32_767)))
+            }
+        }
+    }
+
+    private func peak(_ frame: [Int16]) -> Float {
+        Float(frame.map { abs(Int32($0)) }.max() ?? 0) / 32_767
     }
 }

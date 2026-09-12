@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - SetupGuideView
+
 /// First-run walkthrough: where DMR IDs and passwords come from, and what
 /// goes in which Settings field. Pure static content.
 struct SetupGuideView: View {
@@ -68,14 +70,20 @@ struct SetupGuideView: View {
     }
 }
 
+// MARK: - Step
+
 private struct Step: View {
-    let number: Int
-    let text: String
+    // MARK: Lifecycle
 
     init(_ number: Int, _ text: String) {
         self.number = number
         self.text = text
     }
+
+    // MARK: Internal
+
+    let number: Int
+    let text: String
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -90,14 +98,20 @@ private struct Step: View {
     }
 }
 
+// MARK: - GuideLink
+
 private struct GuideLink: View {
-    let label: String
-    let url: String
+    // MARK: Lifecycle
 
     init(_ label: String, url: String) {
         self.label = label
         self.url = url
     }
+
+    // MARK: Internal
+
+    let label: String
+    let url: String
 
     var body: some View {
         Link(destination: URL(string: url)!) {

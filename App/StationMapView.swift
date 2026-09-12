@@ -7,33 +7,15 @@ extension GeoPoint {
     }
 }
 
+// MARK: - StationMapView
+
 /// Full-screen map of heard stations plus the BrandMeister overlay
 struct StationMapView: View {
+    // MARK: Internal
+
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
     @ObservedObject var overlay: OverlayModel
-    @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("mapStyleImagery") private var imagery = false
-    @State private var camera: MapCameraPosition = .region(Self.worldRegion)
-    @State private var framed = false
-    @State private var selected: String?
-    @State private var now = Date()
-
-    private let tick = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
-    private let localTTL: TimeInterval = 60 * 60
-    private let overlayTTL: TimeInterval = 15 * 60
-
-    private static let worldRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 30, longitude: -40),
-        span: MKCoordinateSpan(latitudeDelta: 120, longitudeDelta: 220)
-    )
-
-    private var stations: [MapStation] {
-        MapStationMerge.stations(
-            heard: model.heard, overlay: overlay.stations,
-            now: now, localTTL: localTTL, overlayTTL: overlayTTL
-        )
-    }
 
     var body: some View {
         Map(position: $camera, selection: $selected) {
@@ -95,40 +77,29 @@ struct StationMapView: View {
         }
     }
 
-    private func startFeed() {
-        guard settings.mapOverlay else { return }
-        overlay.start(talkgroups: settings.mapOverlayTalkgroups)
-    }
+    // MARK: Private
 
-    /// Older pins fade toward 0.35 across their TTL
-    private func fade(for station: MapStation) -> Double {
-        guard !station.active else { return 1 }
-        let ttl = station.kind == .local ? localTTL : overlayTTL
-        let fraction = min(1, station.age(at: now) / ttl)
-        return 1 - 0.65 * fraction
-    }
+    private static let worldRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 30, longitude: -40),
+        span: MKCoordinateSpan(latitudeDelta: 120, longitudeDelta: 220)
+    )
 
-    private func recenter() {
-        let points = stations.map(\.point)
-        guard let first = points.first else { return }
-        var minLat = first.lat, maxLat = first.lat
-        var minLon = first.lon, maxLon = first.lon
-        for point in points.dropFirst() {
-            minLat = min(minLat, point.lat)
-            maxLat = max(maxLat, point.lat)
-            minLon = min(minLon, point.lon)
-            maxLon = max(maxLon, point.lon)
-        }
-        let region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(
-                latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2
-            ),
-            span: MKCoordinateSpan(
-                latitudeDelta: max(4, (maxLat - minLat) * 1.4),
-                longitudeDelta: max(4, (maxLon - minLon) * 1.4)
-            )
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("mapStyleImagery") private var imagery = false
+    @State private var camera: MapCameraPosition = .region(Self.worldRegion)
+    @State private var framed = false
+    @State private var selected: String?
+    @State private var now = Date()
+
+    private let tick = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    private let localTTL: TimeInterval = 60 * 60
+    private let overlayTTL: TimeInterval = 15 * 60
+
+    private var stations: [MapStation] {
+        MapStationMerge.stations(
+            heard: model.heard, overlay: overlay.stations,
+            now: now, localTTL: localTTL, overlayTTL: overlayTTL
         )
-        withAnimation { camera = .region(region) }
     }
 
     // MARK: - Chrome
@@ -166,8 +137,20 @@ struct StationMapView: View {
         }
     }
 
-    private func tgLabel(_ group: Talkgroup) -> String {
-        group.name.isEmpty ? "TG \(group.tg)" : "TG \(group.tg) \(group.name)"
+    private var overlayColor: Color {
+        switch overlay.state {
+        case .running: CW.green
+        case .idle: CW.xdim
+        case .failed: CW.red
+        default: CW.amber
+        }
+    }
+
+    private var overlayStateText: String {
+        if case let .failed(why) = overlay.state {
+            return why
+        }
+        return overlay.state == .running ? "live" : String(describing: overlay.state)
     }
 
     private var statusStrip: some View {
@@ -200,26 +183,58 @@ struct StationMapView: View {
         }
     }
 
-    private var overlayColor: Color {
-        switch overlay.state {
-        case .running: return CW.green
-        case .idle: return CW.xdim
-        case .failed: return CW.red
-        default: return CW.amber
+    private func startFeed() {
+        guard settings.mapOverlay else {
+            return
         }
+        overlay.start(talkgroups: settings.mapOverlayTalkgroups)
     }
 
-    private var overlayStateText: String {
-        if case let .failed(why) = overlay.state {
-            return why
+    /// Older pins fade toward 0.35 across their TTL
+    private func fade(for station: MapStation) -> Double {
+        guard !station.active else {
+            return 1
         }
-        return overlay.state == .running ? "live" : String(describing: overlay.state)
+        let ttl = station.kind == .local ? localTTL : overlayTTL
+        let fraction = min(1, station.age(at: now) / ttl)
+        return 1 - 0.65 * fraction
+    }
+
+    private func recenter() {
+        let points = stations.map(\.point)
+        guard let first = points.first else {
+            return
+        }
+        var minLat = first.lat, maxLat = first.lat
+        var minLon = first.lon, maxLon = first.lon
+        for point in points.dropFirst() {
+            minLat = min(minLat, point.lat)
+            maxLat = max(maxLat, point.lat)
+            minLon = min(minLon, point.lon)
+            maxLon = max(maxLon, point.lon)
+        }
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2
+            ),
+            span: MKCoordinateSpan(
+                latitudeDelta: max(4, (maxLat - minLat) * 1.4),
+                longitudeDelta: max(4, (maxLon - minLon) * 1.4)
+            )
+        )
+        withAnimation { camera = .region(region) }
+    }
+
+    private func tgLabel(_ group: Talkgroup) -> String {
+        group.name.isEmpty ? "TG \(group.tg)" : "TG \(group.tg) \(group.name)"
     }
 }
 
-// MARK: - Pin
+// MARK: - StationPin
 
 private struct StationPin: View {
+    // MARK: Internal
+
     let station: MapStation
     let isSelected: Bool
     let fade: Double
@@ -241,6 +256,8 @@ private struct StationPin: View {
         .opacity(station.source == .dxcc ? fade * 0.5 : fade)
     }
 
+    // MARK: Private
+
     @ViewBuilder
     private var pin: some View {
         let color = station.active ? CW.green : (station.kind == .local ? CW.blue : CW.dim)
@@ -260,9 +277,11 @@ private struct StationPin: View {
     }
 }
 
-// MARK: - Selected-station card
+// MARK: - StationCard
 
 private struct StationCard: View {
+    // MARK: Internal
+
     let station: MapStation
     let now: Date
     let tgName: (UInt32) -> String?
@@ -322,14 +341,16 @@ private struct StationCard: View {
         .overlay(Rectangle().frame(height: 1).foregroundStyle(CW.border), alignment: .top)
     }
 
+    // MARK: Private
+
     private func relative(_ date: Date) -> String {
         let seconds = Int(now.timeIntervalSince(date))
         if seconds < 60 {
             return "\(seconds)s ago"
         }
-        if seconds < 3600 {
+        if seconds < 3_600 {
             return "\(seconds / 60)m ago"
         }
-        return "\(seconds / 3600)h \(seconds % 3600 / 60)m ago"
+        return "\(seconds / 3_600)h \(seconds % 3_600 / 60)m ago"
     }
 }

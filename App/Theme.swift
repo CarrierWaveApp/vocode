@@ -1,7 +1,25 @@
 import SwiftUI
 
+// MARK: - CW
+
 /// Palette lifted from carrierwave.app
-enum CW {
+enum CW { // swiftlint:disable:this type_name
+    enum SansWeight {
+        case regular
+        case medium
+        case semibold
+
+        // MARK: Internal
+
+        var name: String {
+            switch self {
+            case .regular: "Outfit-Regular"
+            case .medium: "Outfit-Medium"
+            case .semibold: "Outfit-SemiBold"
+            }
+        }
+    }
+
     static let bg = Color(hex: 0x0E0F11)
     static let surface = Color(hex: 0x131518)
     static let raised = Color(hex: 0x1A1D21)
@@ -22,17 +40,6 @@ enum CW {
     static func mono(_ size: CGFloat, medium: Bool = false) -> Font {
         .custom(medium ? "IBMPlexMono-Medium" : "IBMPlexMono-Regular", size: size)
     }
-
-    enum SansWeight {
-        case regular, medium, semibold
-        var name: String {
-            switch self {
-            case .regular: return "Outfit-Regular"
-            case .medium: return "Outfit-Medium"
-            case .semibold: return "Outfit-SemiBold"
-            }
-        }
-    }
 }
 
 extension Color {
@@ -45,13 +52,19 @@ extension Color {
     }
 }
 
+// MARK: - SectionLabel
+
 /// "// SECTION" label like the site
 struct SectionLabel: View {
-    let text: String
+    // MARK: Lifecycle
 
     init(_ text: String) {
         self.text = text
     }
+
+    // MARK: Internal
+
+    let text: String
 
     var body: some View {
         Text("// " + text.uppercased())
@@ -61,6 +74,8 @@ struct SectionLabel: View {
             .textCase(nil)
     }
 }
+
+// MARK: - CWListStyle
 
 /// Shared list chrome
 struct CWListStyle: ViewModifier {
@@ -81,6 +96,8 @@ extension View {
         modifier(CWListStyle())
     }
 }
+
+// MARK: - PillButtonStyle
 
 /// Pill button matching the site's CTA
 struct PillButtonStyle: ButtonStyle {

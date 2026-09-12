@@ -1,20 +1,16 @@
 import SwiftUI
 
+// MARK: - MasterPickerView
+
 // "Master" is BrandMeister's own name for its servers (see MasterScout).
 // swiftlint:disable inclusive_language
 
 /// Picker over the BrandMeister master directory. Every master is probed on
 /// appear; rows show live round-trip time and tapping one sets the host.
 struct MasterPickerView: View {
-    @EnvironmentObject var settings: Settings
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var scout = MasterScout()
-    @State private var customHost = ""
-    @State private var customPort = Int(MasterScout.openTerminalPort)
+    // MARK: Internal
 
-    private var trimmedCustomHost: String {
-        customHost.trimmingCharacters(in: .whitespaces)
-    }
+    @EnvironmentObject var settings: Settings
 
     var body: some View {
         Form {
@@ -67,7 +63,7 @@ struct MasterPickerView: View {
                         }
                     }
                 }
-                .disabled(trimmedCustomHost.isEmpty || customPort <= 0 || customPort > 65535)
+                .disabled(trimmedCustomHost.isEmpty || customPort <= 0 || customPort > 65_535)
             } header: {
                 SectionLabel("Custom")
             } footer: {
@@ -98,6 +94,17 @@ struct MasterPickerView: View {
         .onDisappear { scout.cancelAll() }
     }
 
+    // MARK: Private
+
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var scout = MasterScout()
+    @State private var customHost = ""
+    @State private var customPort = Int(MasterScout.openTerminalPort)
+
+    private var trimmedCustomHost: String {
+        customHost.trimmingCharacters(in: .whitespaces)
+    }
+
     private func row(_ master: BMMaster) -> some View {
         Button {
             settings.host = master.host
@@ -124,13 +131,16 @@ struct MasterPickerView: View {
     }
 }
 
+// MARK: - LatencyBadge
+
 /// Round-trip time chip shared by the picker rows and the Settings row.
 struct LatencyBadge: View {
     let state: ProbeState?
 
     var body: some View {
         switch state {
-        case nil, .probing?:
+        case nil,
+             .probing?:
             Text("· · ·")
                 .font(CW.mono(12))
                 .foregroundStyle(CW.xdim)

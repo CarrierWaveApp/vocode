@@ -15,7 +15,9 @@ extension MonitorModel {
         iaxConnectToken = token
         Task { @MainActor in
             let addr = await ASLDirectory.resolve(node: cfg.targetNode)
-            guard iaxConnectToken == token else { return }
+            guard iaxConnectToken == token else {
+                return
+            }
             cfg.host = addr.host
             cfg.port = addr.port
             startIAX(cfg)
@@ -69,7 +71,9 @@ extension MonitorModel {
     }
 
     func beginAllStarTransmit(_ settings: Settings) {
-        guard !transmitting, !txPending, isConnected else { return }
+        guard !transmitting, !txPending, isConnected else {
+            return
+        }
         txPending = true
         Task { @MainActor in
             defer { txPending = false }
@@ -78,7 +82,9 @@ extension MonitorModel {
                 appendLog("microphone permission denied", error: true)
                 return
             }
-            guard !transmitting, let iax = iaxClient, isConnected else { return }
+            guard !transmitting, let iax = iaxClient, isConnected else {
+                return
+            }
             startAllStarTx(iax, node: settings.aslTarget)
         }
     }

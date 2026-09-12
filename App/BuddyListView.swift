@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - BuddySettingsSection
+
 /// The Buddy watch block in SettingsView's Form
 struct BuddySettingsSection: View {
     @EnvironmentObject var settings: Settings
@@ -44,8 +46,12 @@ struct BuddySettingsSection: View {
     }
 }
 
+// MARK: - BuddyListView
+
 /// Buddy watch list editor; mirrors the Talkgroups editing block in Settings
 struct BuddyListView: View {
+    // MARK: Internal
+
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var buddyClient: BuddyClient
 
@@ -108,6 +114,8 @@ struct BuddyListView: View {
         .onDisappear { buddyClient.syncIfNeeded(settings) }
     }
 
+    // MARK: Private
+
     @State private var testResult: String?
 
     private var list: Binding<[Buddy]> {
@@ -115,6 +123,24 @@ struct BuddyListView: View {
             get: { settings.buddyList },
             set: { settings.buddyList = $0 }
         )
+    }
+
+    private var statusText: String {
+        switch buddyClient.status {
+        case .idle: "idle"
+        case .syncing: "syncing"
+        case let .synced(when):
+            "synced \(when.formatted(date: .omitted, time: .shortened))"
+        case let .failed(why): why
+        }
+    }
+
+    private var statusColor: Color {
+        switch buddyClient.status {
+        case .synced: CW.green
+        case .failed: CW.red
+        default: CW.dim
+        }
     }
 
     private var statusRow: some View {
@@ -127,36 +153,22 @@ struct BuddyListView: View {
         }
     }
 
-    private var statusText: String {
-        switch buddyClient.status {
-        case .idle: return "idle"
-        case .syncing: return "syncing"
-        case let .synced(when):
-            return "synced \(when.formatted(date: .omitted, time: .shortened))"
-        case let .failed(why): return why
-        }
-    }
-
-    private var statusColor: Color {
-        switch buddyClient.status {
-        case .synced: return CW.green
-        case .failed: return CW.red
-        default: return CW.dim
-        }
-    }
-
     /// Fill in the DMR ID once a callsign stops changing; best-effort
     private func resolveID(_ buddyID: UUID) {
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             var current = settings.buddyList
-            guard let index = current.firstIndex(where: { $0.id == buddyID }) else { return }
+            guard let index = current.firstIndex(where: { $0.id == buddyID }) else {
+                return
+            }
             let call = current[index].callsign
             guard call.count >= 3,
                   let dmrID = await BuddyClient.dmrID(forCallsign: call),
                   let again = settings.buddyList.firstIndex(where: { $0.id == buddyID }),
                   settings.buddyList[again].callsign == call
-            else { return }
+            else {
+                return
+            }
             current = settings.buddyList
             current[again].dmrID = dmrID
             settings.buddyList = current

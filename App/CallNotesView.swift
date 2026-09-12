@@ -1,9 +1,11 @@
 import SwiftUI
 
+// MARK: - CallNotesView
+
 struct CallNotesView: View {
+    // MARK: Internal
+
     @EnvironmentObject var store: CallNotesStore
-    @State private var editing: CallNotesFile?
-    @State private var adding = false
 
     var body: some View {
         List {
@@ -47,10 +49,20 @@ struct CallNotesView: View {
             CallNotesEditor(file: nil) { store.add(name: $0.name, location: $0.location) }
         }
     }
+
+    // MARK: Private
+
+    @State private var editing: CallNotesFile?
+    @State private var adding = false
 }
 
+// MARK: - CallNotesRow
+
 struct CallNotesRow: View {
+    // MARK: Internal
+
     @EnvironmentObject var store: CallNotesStore
+
     let file: CallNotesFile
     let busy: Bool
 
@@ -75,21 +87,23 @@ struct CallNotesRow: View {
         }
     }
 
+    // MARK: Private
+
     private var subtitle: String {
         if let err = file.lastError {
             return err
         }
-        guard let when = file.lastFetched else { return "Not loaded yet" }
+        guard let when = file.lastFetched else {
+            return "Not loaded yet"
+        }
         return "\(file.entryCount) calls · \(when.formatted(.relative(presentation: .named)))"
     }
 }
 
+// MARK: - CallNotesEditor
+
 struct CallNotesEditor: View {
-    @Environment(\.dismiss) private var dismiss
-    let original: CallNotesFile?
-    let onSave: (CallNotesFile) -> Void
-    @State private var name: String
-    @State private var location: String
+    // MARK: Lifecycle
 
     init(file: CallNotesFile?, onSave: @escaping (CallNotesFile) -> Void) {
         original = file
@@ -97,6 +111,11 @@ struct CallNotesEditor: View {
         _name = State(initialValue: file?.name ?? "")
         _location = State(initialValue: file?.location ?? "")
     }
+
+    // MARK: Internal
+
+    let original: CallNotesFile?
+    let onSave: (CallNotesFile) -> Void
 
     var body: some View {
         NavigationStack {
@@ -117,7 +136,10 @@ struct CallNotesEditor: View {
                 } header: {
                     SectionLabel("Location")
                 } footer: {
-                    Text("Direct link or share link from Dropbox, Google Drive, Google Docs, GitHub Gist, or iCloud Drive. One call per line, then the note.")
+                    Text(
+                        "Direct link or share link from Dropbox, Google Drive, Google Docs, GitHub Gist, "
+                            + "or iCloud Drive. One call per line, then the note."
+                    )
                 }
             }
             .cwList()
@@ -130,10 +152,10 @@ struct CallNotesEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        var f = original ?? CallNotesFile(id: "", name: "", location: "", enabled: true)
-                        f.name = name.trimmingCharacters(in: .whitespaces)
-                        f.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
-                        onSave(f)
+                        var updated = original ?? CallNotesFile(id: "", name: "", location: "", enabled: true)
+                        updated.name = name.trimmingCharacters(in: .whitespaces)
+                        updated.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
+                        onSave(updated)
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -142,4 +164,10 @@ struct CallNotesEditor: View {
             }
         }
     }
+
+    // MARK: Private
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var location: String
 }

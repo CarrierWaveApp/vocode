@@ -1,14 +1,12 @@
 import Foundation
 import UserNotifications
 
+// MARK: - Buddy
+
 /// One watched station. The app owns the list; the server holds a replica
 /// replaced wholesale on every sync.
 struct Buddy: Codable, Identifiable, Equatable {
-    var id: UUID
-    var callsign: String
-    var dmrID: UInt32
-    var label: String
-    var talkgroups: [UInt32]
+    // MARK: Lifecycle
 
     init(id: UUID = UUID(), callsign: String = "", dmrID: UInt32 = 0,
          label: String = "", talkgroups: [UInt32] = [])
@@ -28,7 +26,17 @@ struct Buddy: Codable, Identifiable, Equatable {
         label = try values.decodeIfPresent(String.self, forKey: .label) ?? ""
         talkgroups = try values.decodeIfPresent([UInt32].self, forKey: .talkgroups) ?? []
     }
+
+    // MARK: Internal
+
+    var id: UUID
+    var callsign: String
+    var dmrID: UInt32
+    var label: String
+    var talkgroups: [UInt32]
 }
+
+// MARK: - BuddyStatus
 
 enum BuddyStatus: Equatable {
     case idle
@@ -37,10 +45,30 @@ enum BuddyStatus: Equatable {
     case failed(String)
 }
 
+// MARK: - BuddyClient
+
 /// Talks to the dmr-lookout server: device registration + watch-list sync.
 @MainActor
 final class BuddyClient: ObservableObject {
+    // MARK: Internal
+
     @Published var status: BuddyStatus = .idle
+
+    /// Resolve a callsign to its DMR ID via radioid.net (the inverse of
+    /// CallsignLookup); best-effort at buddy-add time
+    static func dmrID(forCallsign call: String) async -> UInt32? {
+        let normalized = call.trimmingCharacters(in: .whitespaces).uppercased()
+        guard !normalized.isEmpty,
+              let url = URL(string: "https://radioid.net/api/dmr/user/?callsign=\(normalized)"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = json["results"] as? [[String: Any]]
+        else {
+            return nil
+        }
+        let ids = results.compactMap { $0["id"] as? UInt32 }
+        return ids.min()
+    }
 
     /// Wire the APNs token callback and kick a registration if enabled.
     /// Idempotent; called from the root view's task. Every bail-out sets a
@@ -49,7 +77,9 @@ final class BuddyClient: ObservableObject {
         PushManager.shared.onToken = { [weak self] token in
             Task { await self?.registerAndSync(settings, apnsToken: token) }
         }
-        guard settings.buddyWatchEnabled else { return }
+        guard settings.buddyWatchEnabled else {
+            return
+        }
         if settings.buddyDeviceID.isEmpty {
             settings.buddyDeviceID = UUID().uuidString
         }
@@ -75,7 +105,9 @@ final class BuddyClient: ObservableObject {
     }
 
     func registerAndSync(_ settings: Settings, apnsToken: String) async {
-        guard settings.buddyWatchEnabled, settings.buddyConfigured else { return }
+        guard settings.buddyWatchEnabled, settings.buddyConfigured else {
+            return
+        }
         status = .syncing
         do {
             if apnsToken != settings.buddyLastToken {
@@ -117,7 +149,9 @@ final class BuddyClient: ObservableObject {
         }
         let data = try JSONSerialization.data(withJSONObject: list)
         let hash = String(data.hashValue)
-        guard hash != settings.buddyLastSynced else { return }
+        guard hash != settings.buddyLastSynced else {
+            return
+        }
         try await send(settings, path: "/v1/devices/\(settings.buddyDeviceID)/watches",
                        method: "PUT", body: data)
         settings.buddyLastSynced = hash
@@ -128,7 +162,10 @@ final class BuddyClient: ObservableObject {
     /// path first — a bare watch PUT for an unknown device can't succeed.
     func syncIfNeeded(_ settings: Settings) {
         guard settings.buddyWatchEnabled, settings.buddyConfigured,
-              !settings.buddyDeviceID.isEmpty else { return }
+              !settings.buddyDeviceID.isEmpty
+        else {
+            return
+        }
         if settings.buddyLastToken.isEmpty {
             if let token = PushManager.shared.deviceToken {
                 Task { await registerAndSync(settings, apnsToken: token) }
@@ -160,26 +197,16 @@ final class BuddyClient: ObservableObject {
 
     /// Best-effort deregistration when the toggle goes off
     func deregister(_ settings: Settings) {
-        guard settings.buddyConfigured, !settings.buddyDeviceID.isEmpty else { return }
+        guard settings.buddyConfigured, !settings.buddyDeviceID.isEmpty else {
+            return
+        }
         settings.buddyLastToken = ""
         settings.buddyLastSynced = ""
         let path = "/v1/devices/\(settings.buddyDeviceID)"
         Task { try? await send(settings, path: path, method: "DELETE", body: nil) }
     }
 
-    /// Resolve a callsign to its DMR ID via radioid.net (the inverse of
-    /// CallsignLookup); best-effort at buddy-add time
-    static func dmrID(forCallsign call: String) async -> UInt32? {
-        let normalized = call.trimmingCharacters(in: .whitespaces).uppercased()
-        guard !normalized.isEmpty,
-              let url = URL(string: "https://radioid.net/api/dmr/user/?callsign=\(normalized)"),
-              let (data, _) = try? await URLSession.shared.data(from: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let results = json["results"] as? [[String: Any]]
-        else { return nil }
-        let ids = results.compactMap { $0["id"] as? UInt32 }
-        return ids.min()
-    }
+    // MARK: Private
 
     // MARK: - HTTP
 
@@ -202,7 +229,9 @@ final class BuddyClient: ObservableObject {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         let (payload, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw BuddyError.badResponse }
+        guard let http = response as? HTTPURLResponse else {
+            throw BuddyError.badResponse
+        }
         guard (200 ..< 300).contains(http.statusCode) else {
             let text = String(bytes: payload, encoding: .utf8) ?? ""
             throw BuddyError.server(http.statusCode, text)
@@ -210,17 +239,21 @@ final class BuddyClient: ObservableObject {
     }
 }
 
+// MARK: - BuddyError
+
 enum BuddyError: LocalizedError {
     case badURL
     case badResponse
     case server(Int, String)
 
+    // MARK: Internal
+
     var errorDescription: String? {
         switch self {
-        case .badURL: return "bad server URL"
-        case .badResponse: return "bad response"
+        case .badURL: "bad server URL"
+        case .badResponse: "bad response"
         case let .server(code, text):
-            return text.isEmpty ? "server error \(code)" : "\(code): \(text)"
+            text.isEmpty ? "server error \(code)" : "\(code): \(text)"
         }
     }
 }

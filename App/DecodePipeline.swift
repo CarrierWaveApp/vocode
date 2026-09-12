@@ -2,12 +2,7 @@ import Foundation
 
 /// Decode path, runs off the main thread
 final class DecodePipeline {
-    private let decoder = AMBEDecoder()
-    private let audio = AudioOutput()
-    private let queue = DispatchQueue(label: "dmr.decode")
-    private let lock = NSLock()
-    private var muted: Set<UInt32> = []
-    private var currentStream: UInt32 = 0
+    // MARK: Internal
 
     var onCallStart: ((DMRDPacket) -> Void)?
     var onCallEnd: ((UInt32) -> Void)?
@@ -61,8 +56,19 @@ final class DecodePipeline {
         queue.async { [self] in decoder.reset() }
     }
 
+    // MARK: Private
+
+    private let decoder = AMBEDecoder()
+    private let audio = AudioOutput()
+    private let queue = DispatchQueue(label: "dmr.decode")
+    private let lock = NSLock()
+    private var muted: Set<UInt32> = []
+    private var currentStream: UInt32 = 0
+
     private func handle(_ pkt: DMRDPacket) {
-        guard pkt.isGroup else { return }
+        guard pkt.isGroup else {
+            return
+        }
 
         if pkt.streamID != currentStream {
             currentStream = pkt.streamID
@@ -75,7 +81,9 @@ final class DecodePipeline {
             return
         }
 
-        guard pkt.isVoice, let burst = VoiceBurst(pkt.payload) else { return }
+        guard pkt.isVoice, let burst = VoiceBurst(pkt.payload) else {
+            return
+        }
         if lock.withLock({ muted.contains(pkt.dst) }) {
             return
         }
