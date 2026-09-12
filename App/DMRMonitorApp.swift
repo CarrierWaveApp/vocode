@@ -16,10 +16,12 @@ struct DMRMonitorApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // NetJoinRelay reads these objects, so it must sit inside
+                // the environmentObject injections, not above them
+                .modifier(NetJoinRelay())
                 .environmentObject(model)
                 .environmentObject(settings)
                 .environmentObject(notes)
-                .modifier(NetJoinRelay())
         }
     }
 }
