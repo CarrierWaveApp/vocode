@@ -1,17 +1,20 @@
-import XCTest
 @testable import DMRMonitor
+import XCTest
 
 final class NetScheduleTests: XCTestCase {
     private func utcDate(_ year: Int, _ month: Int, _ day: Int,
-                         _ hour: Int, _ minute: Int) -> Date {
+                         _ hour: Int, _ minute: Int) -> Date
+    {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         return calendar.date(from: DateComponents(
-            year: year, month: month, day: day, hour: hour, minute: minute))!
+            year: year, month: month, day: day, hour: hour, minute: minute
+        ))!
     }
 
     private func net(weekdays: [Int], hour: Int, minute: Int,
-                     zone: String) -> Net {
+                     zone: String) -> Net
+    {
         Net(name: "Test", talkgroup: 3100, weekdays: weekdays,
             hour: hour, minute: minute, timeZoneID: zone)
     }
@@ -48,23 +51,26 @@ final class NetScheduleTests: XCTestCase {
     func testOccurrencesAdvance() {
         let weekly = net(weekdays: [4], hour: 12, minute: 0, zone: "UTC")
         let dates = NetSchedule.occurrences(
-            of: weekly, after: utcDate(2026, 9, 7, 0, 0), limit: 3)
+            of: weekly, after: utcDate(2026, 9, 7, 0, 0), limit: 3
+        )
         XCTAssertEqual(dates.count, 3)
-        XCTAssertEqual(dates[1].timeIntervalSince(dates[0]), 7 * 86_400)
-        XCTAssertEqual(dates[2].timeIntervalSince(dates[1]), 7 * 86_400)
+        XCTAssertEqual(dates[1].timeIntervalSince(dates[0]), 7 * 86400)
+        XCTAssertEqual(dates[2].timeIntervalSince(dates[1]), 7 * 86400)
     }
 
-    func testLeadRollsToPreviousWeekday() {
+    func testLeadRollsToPreviousWeekday() throws {
         // 00:05 Sunday start with a 10-minute lead fires Saturday 23:55;
         // the scheduler derives components from the concrete fire date
         let early = net(weekdays: [1], hour: 0, minute: 5, zone: "UTC")
-        let start = NetSchedule.nextOccurrence(
-            of: early, after: utcDate(2026, 9, 9, 0, 0))!
+        let start = try XCTUnwrap(NetSchedule.nextOccurrence(
+            of: early, after: utcDate(2026, 9, 9, 0, 0)
+        ))
         let fire = start.addingTimeInterval(-600)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
         let comps = calendar.dateComponents(
-            [.weekday, .hour, .minute], from: fire)
+            [.weekday, .hour, .minute], from: fire
+        )
         XCTAssertEqual(comps.weekday, 7)
         XCTAssertEqual(comps.hour, 23)
         XCTAssertEqual(comps.minute, 55)
@@ -88,9 +94,11 @@ final class NetScheduleTests: XCTestCase {
     func testCountdownFormats() {
         let now = utcDate(2026, 9, 9, 12, 0)
         XCTAssertEqual(NetSchedule.countdown(
-            to: now.addingTimeInterval(300), from: now), "in 5m")
+            to: now.addingTimeInterval(300), from: now
+        ), "in 5m")
         XCTAssertEqual(NetSchedule.countdown(
-            to: now.addingTimeInterval(5400), from: now), "in 1h 30m")
+            to: now.addingTimeInterval(5400), from: now
+        ), "in 1h 30m")
         XCTAssertEqual(NetSchedule.countdown(to: now, from: now), "now")
     }
 }

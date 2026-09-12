@@ -53,7 +53,7 @@ final class DExtraClient {
                 self.sendLink(module: self.config.module)
                 self.startTimer()
                 self.receiveLoop()
-            case .failed(let err):
+            case let .failed(err):
                 self.fail(err.localizedDescription)
             case .cancelled:
                 self.state = .idle
@@ -85,8 +85,8 @@ final class DExtraClient {
         Array(config.callsign.uppercased().padding(toLength: 8, withPad: " ", startingAt: 0).utf8)
     }
 
-    // Link request: callsign, our module letter, reflector module, NUL.
-    // Module " " means unlink.
+    /// Link request: callsign, our module letter, reflector module, NUL.
+    /// Module " " means unlink.
     private func sendLink(module: Character) {
         var pkt = paddedCall
         pkt.append(UInt8(ascii: "D"))
@@ -123,8 +123,12 @@ final class DExtraClient {
     private func receiveLoop() {
         conn?.receiveMessage { [weak self] data, _, _, error in
             guard let self else { return }
-            if let data { self.handle(data) }
-            if error == nil { self.receiveLoop() }
+            if let data {
+                self.handle(data)
+            }
+            if error == nil {
+                self.receiveLoop()
+            }
         }
     }
 
@@ -152,13 +156,13 @@ final class DExtraClient {
             if data[14] & 0x40 != 0 {
                 onCallEnd?(streamID)
             } else {
-                onAmbe?(Array(data[15..<24]))
+                onAmbe?(Array(data[15 ..< 24]))
             }
         }
     }
 
     private func field(_ data: Data, _ offset: Int, _ length: Int) -> String {
-        let bytes = data[data.startIndex + offset..<data.startIndex + offset + length]
+        let bytes = data[data.startIndex + offset ..< data.startIndex + offset + length]
         return (String(bytes: bytes, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespaces)
     }
 

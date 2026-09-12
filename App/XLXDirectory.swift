@@ -9,14 +9,16 @@ struct XLXReflector: Identifiable {
     let ipAddress: String
     let country: String
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 }
 
-// Bundled snapshot of the live XLX registry (xlxapi.rlx.lu), reflectors
-// seen within 24h of the snapshot, generated 2026-09-06. Hostnames are
-// the reflector dashboards where they resolve, else the registered IP;
-// the resolved IP (ipAddress) rides along so latency pings need no DNS. Stored as
-// data rather than 800+ struct literals to keep compiles fast.
+/// Bundled snapshot of the live XLX registry (xlxapi.rlx.lu), reflectors
+/// seen within 24h of the snapshot, generated 2026-09-06. Hostnames are
+/// the reflector dashboards where they resolve, else the registered IP;
+/// the resolved IP (ipAddress) rides along so latency pings need no DNS. Stored as
+/// data rather than 800+ struct literals to keep compiles fast.
 enum XLXDirectory {
     static let all: [XLXReflector] = xlxRawDirectory.split(separator: "\n").compactMap { line in
         let parts = line.split(separator: "|", omittingEmptySubsequences: false)

@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Palette lifted from carrierwave.app
+/// Palette lifted from carrierwave.app
 enum CW {
     static let bg = Color(hex: 0x0E0F11)
     static let surface = Color(hex: 0x131518)
@@ -45,11 +45,13 @@ extension Color {
     }
 }
 
-// "// SECTION" label like the site
+/// "// SECTION" label like the site
 struct SectionLabel: View {
     let text: String
 
-    init(_ text: String) { self.text = text }
+    init(_ text: String) {
+        self.text = text
+    }
 
     var body: some View {
         Text("// " + text.uppercased())
@@ -60,7 +62,7 @@ struct SectionLabel: View {
     }
 }
 
-// Shared list chrome
+/// Shared list chrome
 struct CWListStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -75,10 +77,12 @@ struct CWListStyle: ViewModifier {
 }
 
 extension View {
-    func cwList() -> some View { modifier(CWListStyle()) }
+    func cwList() -> some View {
+        modifier(CWListStyle())
+    }
 }
 
-// Pill button matching the site's CTA
+/// Pill button matching the site's CTA
 struct PillButtonStyle: ButtonStyle {
     var filled = true
 

@@ -2,9 +2,9 @@ import Foundation
 import SwiftUI
 import UserNotifications
 
-// Schedules the repeating local reminders for nets. iOS silently keeps
-// only the 64 soonest pending requests, so the expansion is capped
-// deterministically in list order and surfaced in the UI.
+/// Schedules the repeating local reminders for nets. iOS silently keeps
+/// only the 64 soonest pending requests, so the expansion is capped
+/// deterministically in list order and surfaced in the UI.
 @MainActor
 enum NetScheduler {
     static let maxRequests = 64
@@ -14,8 +14,8 @@ enum NetScheduler {
     static let pendingNameKey = "pendingJoinName"
     static let joinRequested = Notification.Name("netJoinRequested")
 
-    // Full rebuild: remove every net.* request, re-add up to the cap.
-    // Returns (scheduled, trimmed) for the footer.
+    /// Full rebuild: remove every net.* request, re-add up to the cap.
+    /// Returns (scheduled, trimmed) for the footer.
     @discardableResult
     static func reschedule(_ nets: [Net], tgName: (UInt32) -> String?) async -> (Int, Int) {
         let center = UNUserNotificationCenter.current()
@@ -80,7 +80,7 @@ enum NetScheduler {
             "kind": "net",
             "netID": net.id.uuidString,
             "tg": Int(net.talkgroup),
-            "name": net.name
+            "name": net.name,
         ]
         return UNNotificationRequest(
             identifier: "net.\(net.id.uuidString).\(weekday).\(lead)",
@@ -95,7 +95,7 @@ enum NetScheduler {
     }
 }
 
-// One-tap join: make the net's talkgroup live and get audio flowing
+/// One-tap join: make the net's talkgroup live and get audio flowing
 @MainActor
 enum NetJoin {
     static func join(talkgroup: UInt32, name: String, settings: Settings, model: MonitorModel) {
@@ -116,8 +116,8 @@ enum NetJoin {
     }
 }
 
-// Root-level relay: consumes join intents from notification taps. Lives
-// on the app root (never unloaded) rather than a lazy List section.
+/// Root-level relay: consumes join intents from notification taps. Lives
+/// on the app root (never unloaded) rather than a lazy List section.
 struct NetJoinRelay: ViewModifier {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
@@ -127,10 +127,13 @@ struct NetJoinRelay: ViewModifier {
         content
             .task { drain() }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { drain() }
+                if phase == .active {
+                    drain()
+                }
             }
             .onReceive(NotificationCenter.default.publisher(
-                for: NetScheduler.joinRequested)) { _ in
+                for: NetScheduler.joinRequested
+            )) { _ in
                 drain()
             }
     }

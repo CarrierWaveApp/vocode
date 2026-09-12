@@ -1,8 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Full nets list: add/edit/delete, enable toggles, share/import, and the
-// reminder budget footer (iOS keeps only the 64 soonest requests).
+/// Full nets list: add/edit/delete, enable toggles, share/import, and the
+/// reminder budget footer (iOS keeps only the 64 soonest requests).
 struct NetsView: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
@@ -89,7 +89,8 @@ struct NetsView: View {
         .toolbarBackground(CW.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .fileImporter(isPresented: $importing,
-                      allowedContentTypes: [.json]) { result in
+                      allowedContentTypes: [.json])
+        { result in
             importNets(result)
         }
         .task {
@@ -125,7 +126,8 @@ struct NetsView: View {
                 }
                 Spacer()
                 if let next = NetSchedule.nextOccurrence(of: net, after: Date()),
-                   net.enabled {
+                   net.enabled
+                {
                     Text(NetSchedule.countdown(to: next, from: Date()))
                         .font(CW.mono(11))
                         .foregroundStyle(CW.blue)
@@ -149,14 +151,15 @@ struct NetsView: View {
     private func refreshSchedule() {
         Task {
             let result = await NetScheduler.reschedule(
-                settings.netList, tgName: settings.tgName)
+                settings.netList, tgName: settings.tgName
+            )
             scheduled = result.0
             trimmed = result.1
         }
     }
 
-    // Community net directory (scraped from dvnets.com, see the
-    // dmr-lookout repo); an update is a re-fetch — merge is by net id
+    /// Community net directory (scraped from dvnets.com, see the
+    /// dmr-lookout repo); an update is a re-fetch — merge is by net id
     private static let directoryURL = URL(
         string: "https://raw.githubusercontent.com/jsvana/dmr-lookout/main/nets/dmr-nets.json"
     )!
@@ -174,7 +177,7 @@ struct NetsView: View {
     }
 
     private func importNets(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else { return }
+        guard case let .success(url) = result else { return }
         guard url.startAccessingSecurityScopedResource() else { return }
         defer { url.stopAccessingSecurityScopedResource() }
         guard let data = try? Data(contentsOf: url) else {
@@ -219,7 +222,7 @@ struct NetsView: View {
     }
 }
 
-// JSON export via the share sheet, no temp files
+/// JSON export via the share sheet, no temp files
 struct NetsExport: Transferable {
     let nets: [Net]
 

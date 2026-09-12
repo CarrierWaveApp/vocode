@@ -1,8 +1,8 @@
-import Foundation
 import AVFoundation
 import CMBELib
+import Foundation
 
-// Wraps OP25's software AMBE+2 encoder (GPL v3, vendored in Packages/AMBE)
+/// Wraps OP25's software AMBE+2 encoder (GPL v3, vendored in Packages/AMBE)
 final class AMBEEncoder {
     private let enc: OpaquePointer
 
@@ -13,7 +13,7 @@ final class AMBEEncoder {
 
     deinit { ambe_enc_destroy(enc) }
 
-    // 160 samples of 8 kHz S16 → 96-cell mbelib-layout frame
+    /// 160 samples of 8 kHz S16 → 96-cell mbelib-layout frame
     func encode(_ pcm: [Int16]) -> [CChar] {
         var cells = [CChar](repeating: 0, count: 96)
         pcm.withUnsafeBufferPointer { p in
@@ -23,7 +23,7 @@ final class AMBEEncoder {
     }
 }
 
-// One of our own transmissions, for the activity timeline
+/// One of our own transmissions, for the activity timeline
 struct TXBurst: Identifiable, Equatable {
     let id = UUID()
     let dst: UInt32
@@ -33,7 +33,7 @@ struct TXBurst: Identifiable, Equatable {
     var channel: String?
 }
 
-// Speech conditioning for the vocoder
+/// Speech conditioning for the vocoder
 struct MicConditioner {
     private var hpPrevIn: Float = 0
     private var hpPrevOut: Float = 0
@@ -69,8 +69,8 @@ struct MicConditioner {
     }
 }
 
-// Captures the encoded->decoded copy of a transmission so the operator
-// can hear exactly what the network hears
+/// Captures the encoded->decoded copy of a transmission so the operator
+/// can hear exactly what the network hears
 final class TxMonitor {
     private let lock = NSLock()
     private let decoder = AMBEDecoder()
@@ -86,7 +86,7 @@ final class TxMonitor {
         lock.unlock()
     }
 
-    // Called on the TX queue only (AMBEDecoder isn't thread-safe)
+    /// Called on the TX queue only (AMBEDecoder isn't thread-safe)
     func append(cells: [CChar]) {
         let decoded = decoder.decode(cells)
         lock.lock()
@@ -96,8 +96,8 @@ final class TxMonitor {
         lock.unlock()
     }
 
-    // The conditioned PCM going INTO the encoder — pre-codec reference
-    // for bisecting capture problems from codec problems
+    /// The conditioned PCM going INTO the encoder — pre-codec reference
+    /// for bisecting capture problems from codec problems
     func appendMic(_ frame: [Int16]) {
         lock.lock()
         if micSamples.count < maxSamples {
@@ -119,8 +119,8 @@ final class TxMonitor {
     }
 }
 
-// Encodes mic frames off the main actor and batches three 9-byte on-air
-// frames (60 ms) per network packet
+/// Encodes mic frames off the main actor and batches three 9-byte on-air
+/// frames (60 ms) per network packet
 final class TxBatcher {
     private let queue = DispatchQueue(label: "dmr.tx")
     private let encoder: AMBEEncoder
@@ -148,7 +148,7 @@ final class TxBatcher {
     }
 }
 
-// Microphone → 8 kHz mono Int16, delivered in 160-sample (20 ms) frames
+/// Microphone → 8 kHz mono Int16, delivered in 160-sample (20 ms) frames
 final class MicCapture {
     private let engine = AVAudioEngine()
     private var converter: AVAudioConverter?
@@ -231,7 +231,7 @@ final class MicCapture {
 
         residue.append(contentsOf: UnsafeBufferPointer(start: ch, count: Int(out.frameLength)))
         while residue.count >= 160 {
-            var frame = Array(residue[0..<160])
+            var frame = Array(residue[0 ..< 160])
             residue.removeFirst(160)
             conditioner.process(&frame)
             onFrame?(frame)

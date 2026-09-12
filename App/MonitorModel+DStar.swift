@@ -1,6 +1,6 @@
 import Foundation
 
-// D-STAR (DExtra/XLX) connection path
+/// D-STAR (DExtra/XLX) connection path
 extension MonitorModel {
     func connectDStar(_ settings: Settings) {
         guard let cfg = settings.dextraConfig else {
@@ -41,12 +41,14 @@ extension MonitorModel {
         entry.channel = channel
         entry.dstar = true
         heard.insert(entry, at: 0)
-        if heard.count > maxHeard { heard.removeLast() }
+        if heard.count > maxHeard {
+            heard.removeLast()
+        }
         Task { await geocode(streamID: id, callsign: call) }
     }
 
-    // Stable pseudo-ID so timeline lanes key by station; the high bit keeps
-    // it clear of real 7-digit DMR IDs and the self-lane sentinel 0
+    /// Stable pseudo-ID so timeline lanes key by station; the high bit keeps
+    /// it clear of real 7-digit DMR IDs and the self-lane sentinel 0
     static func dstarSrc(_ call: String) -> UInt32 {
         var hash: UInt32 = 2_166_136_261
         for byte in call.utf8 {

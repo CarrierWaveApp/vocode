@@ -5,7 +5,7 @@ let package = Package(
     name: "AMBE",
     platforms: [.iOS(.v17), .macOS(.v13)],
     products: [
-        .library(name: "AMBE", targets: ["CMBELib"])
+        .library(name: "AMBE", targets: ["CMBELib"]),
     ],
     targets: [
         .target(

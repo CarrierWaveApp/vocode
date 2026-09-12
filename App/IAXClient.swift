@@ -1,24 +1,25 @@
+import CryptoKit
+
 // swiftlint:disable file_length
 import Foundation
 import Network
-import CryptoKit
 
 struct IAXConfig {
-    var myNode: String       // our AllStarLink node number
-    var password: String     // that node's password (registration secret)
-    var targetNode: String   // node to link to
-    var host: String         // resolved target address
-    var port: UInt16         // resolved target port, usually 4569
+    var myNode: String // our AllStarLink node number
+    var password: String // that node's password (registration secret)
+    var targetNode: String // node to link to
+    var host: String // resolved target address
+    var port: UInt16 // resolved target port, usually 4569
     var callsign: String
     var registrar = "register.allstarlink.org"
     var registrarPort: UInt16 = 4569
 }
 
-// The RFC 5456 subset AllStar needs: MD5 registration with the ASL
-// registrar (so other nodes can verify our node number), then one
-// outbound call to the target node carrying µ-law voice both ways.
-// Keying is "oldkey" style — audio present means keyed — which every
-// app_rpt version accepts from a link partner.
+/// The RFC 5456 subset AllStar needs: MD5 registration with the ASL
+/// registrar (so other nodes can verify our node number), then one
+/// outbound call to the target node carrying µ-law voice both ways.
+/// Keying is "oldkey" style — audio present means keyed — which every
+/// app_rpt version accepts from a link partner.
 private enum IAX {
     // Frame types
     static let typeDTMF: UInt8 = 1
@@ -49,7 +50,7 @@ private enum IAX {
     static let ieMD5Result: UInt8 = 16, ieRefresh: UInt8 = 19, ieCause: UInt8 = 22
     static let ieCallToken: UInt8 = 54
 
-    static let formatUlaw: UInt32 = 4      // AST_FORMAT_ULAW
+    static let formatUlaw: UInt32 = 4 // AST_FORMAT_ULAW
     static let authMD5: UInt16 = 2
 }
 
@@ -63,7 +64,7 @@ private struct IAXFullFrame {
     var sub: UInt32
     var data: Data
 
-    // Frames that never advance sequence numbers on either side
+    /// Frames that never advance sequence numbers on either side
     var countsForSeq: Bool {
         !(type == IAX.typeIAX && [IAX.ack, IAX.inval, IAX.vnak, IAX.callToken].contains(sub))
     }
@@ -81,12 +82,12 @@ private struct IAXFullFrame {
             timestamp: UInt32(bytes[4]) << 24 | UInt32(bytes[5]) << 16
                 | UInt32(bytes[6]) << 8 | UInt32(bytes[7]),
             oseq: bytes[8], iseq: bytes[9], type: bytes[10], sub: sub,
-            data: raw.count > 12 ? raw.subdata(in: raw.startIndex + 12..<raw.endIndex) : Data()
+            data: raw.count > 12 ? raw.subdata(in: raw.startIndex + 12 ..< raw.endIndex) : Data()
         )
     }
 }
 
-// TLV information-element blob from a full frame
+/// TLV information-element blob from a full frame
 private struct IAXIEs {
     private var fields: [UInt8: Data] = [:]
 
@@ -97,12 +98,14 @@ private struct IAXIEs {
             let len = Int(data[cursor + 1])
             let start = cursor + 2
             guard start + len <= data.endIndex else { break }
-            fields[key] = data.subdata(in: start..<start + len)
+            fields[key] = data.subdata(in: start ..< start + len)
             cursor = start + len
         }
     }
 
-    subscript(_ key: UInt8) -> Data? { fields[key] }
+    subscript(_ key: UInt8) -> Data? {
+        fields[key]
+    }
 
     func str(_ key: UInt8) -> String? {
         fields[key].flatMap { String(data: $0, encoding: .utf8) }
@@ -114,8 +117,8 @@ private struct IAXIEs {
     }
 }
 
-// One IAX2 dialog: a UDP socket to one peer, our call number, and the
-// sequence/timestamp state the wire format needs.
+/// One IAX2 dialog: a UDP socket to one peer, our call number, and the
+/// sequence/timestamp state the wire format needs.
 private final class IAXDialog {
     let conn: NWConnection
     let localCall: UInt16
@@ -142,7 +145,7 @@ private final class IAXDialog {
             case .ready:
                 self?.onReady?()
                 self?.receiveLoop()
-            case .failed(let err):
+            case let .failed(err):
                 self?.onFailed?(err.localizedDescription)
             default:
                 break
@@ -166,7 +169,9 @@ private final class IAXDialog {
                 self.lastHeard = Date()
                 self.dispatch(data)
             }
-            if error == nil { self.receiveLoop() }
+            if error == nil {
+                self.receiveLoop()
+            }
         }
     }
 
@@ -177,13 +182,14 @@ private final class IAXDialog {
             onFull?(frame)
         } else if word0 != 0, data.count > 4 {
             // Mini voice frame: 16-bit call number, 16-bit timestamp, payload
-            onMini?(data.subdata(in: data.startIndex + 4..<data.endIndex))
+            onMini?(data.subdata(in: data.startIndex + 4 ..< data.endIndex))
         }
         // word0 == 0 is a meta/trunk frame; we never negotiate trunking
     }
 
     func sendFull(type: UInt8, sub: UInt32, ies: [(UInt8, Data)] = [],
-                  timestamp: UInt32? = nil, payload: Data = Data()) {
+                  timestamp: UInt32? = nil, payload: Data = Data())
+    {
         let stamp = timestamp ?? nowMs
         let counts = !(type == IAX.typeIAX
             && [IAX.ack, IAX.inval, IAX.vnak, IAX.callToken].contains(sub))
@@ -197,14 +203,16 @@ private final class IAXDialog {
         pkt.append(oseq)
         pkt.append(iseq)
         pkt.append(type)
-        pkt.append(UInt8(sub & 0x7F))   // every subclass we send fits 7 bits
+        pkt.append(UInt8(sub & 0x7F)) // every subclass we send fits 7 bits
         for (key, value) in ies {
             pkt.append(key)
             pkt.append(UInt8(value.count))
             pkt.append(contentsOf: value)
         }
         pkt.append(contentsOf: payload)
-        if counts { oseq &+= 1 }
+        if counts {
+            oseq &+= 1
+        }
         conn.send(content: Data(pkt), completion: .contentProcessed { _ in })
     }
 
@@ -223,8 +231,8 @@ private final class IAXDialog {
         sendFull(type: IAX.typeIAX, sub: IAX.ack, timestamp: frame.timestamp)
     }
 
-    // Advance iseq for a counting frame; duplicates get re-ACKed by the
-    // caller but must not advance state twice.
+    /// Advance iseq for a counting frame; duplicates get re-ACKed by the
+    /// caller but must not advance state twice.
     func noteReceived(_ frame: IAXFullFrame) -> Bool {
         guard frame.countsForSeq else { return true }
         if frame.oseq == iseq {
@@ -313,7 +321,7 @@ final class IAXClient {
         guard let reg else { return }
         var ies: [(UInt8, Data)] = [
             (IAX.ieUsername, Data(config.myNode.utf8)),
-            (IAX.ieRefresh, Data([0, 60]))
+            (IAX.ieRefresh, Data([0, 60])),
         ]
         if let challenge {
             ies.append((IAX.ieMD5Result, Data(md5Response(challenge).utf8)))
@@ -336,7 +344,7 @@ final class IAXClient {
             reg.remoteCall = 0
             var tokenIEs: [(UInt8, Data)] = [
                 (IAX.ieUsername, Data(config.myNode.utf8)),
-                (IAX.ieRefresh, Data([0, 60]))
+                (IAX.ieRefresh, Data([0, 60])),
             ]
             tokenIEs.append((IAX.ieCallToken, ies[IAX.ieCallToken] ?? Data()))
             reg.sendFull(type: IAX.typeIAX, sub: IAX.regreq, ies: tokenIEs)
@@ -388,8 +396,8 @@ final class IAXClient {
         call = dialog
     }
 
-    // app_rpt convention: dial the remote node number, identify ourselves
-    // via the calling number, username "radio" like every nodes-list entry
+    /// app_rpt convention: dial the remote node number, identify ourselves
+    /// via the calling number, username "radio" like every nodes-list entry
     private func newIEs(token: Data?) -> [(UInt8, Data)] {
         [
             (IAX.ieVersion, Data([0, 2])),
@@ -399,7 +407,7 @@ final class IAXClient {
             (IAX.ieUsername, Data("radio".utf8)),
             (IAX.ieFormat, Data([0, 0, 0, UInt8(IAX.formatUlaw)])),
             (IAX.ieCapability, Data([0, 0, 0, UInt8(IAX.formatUlaw)])),
-            (IAX.ieCallToken, token ?? Data())
+            (IAX.ieCallToken, token ?? Data()),
         ]
     }
 
@@ -433,7 +441,8 @@ final class IAXClient {
         case IAX.typeText:
             call.ack(frame)
             if let text = String(data: frame.data, encoding: .utf8),
-               !text.hasPrefix("!") {   // !NEWKEY! and friends are signalling
+               !text.hasPrefix("!")
+            { // !NEWKEY! and friends are signalling
                 log("text: \(text.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
         case IAX.typeDTMF:
@@ -477,7 +486,7 @@ final class IAXClient {
         case IAX.inval:
             fail("node invalidated the call")
         case IAX.vnak:
-            break   // coarse recovery: the watchdog will fail us if stuck
+            break // coarse recovery: the watchdog will fail us if stuck
         default:
             call.ack(frame)
         }
@@ -509,9 +518,13 @@ final class IAXClient {
     private func handleVoice(_ payload: Data) {
         guard !payload.isEmpty else { return }
         lastVoice = Date()
-        if !remoteKeyed { setRemoteKeyed(true) }
+        if !remoteKeyed {
+            setRemoteKeyed(true)
+        }
         // Some nodes answer only once audio flows
-        if state == .configuring { setState(.running) }
+        if state == .configuring {
+            setState(.running)
+        }
         onAudio?(Ulaw.decode(payload))
     }
 
@@ -531,7 +544,7 @@ final class IAXClient {
         }
     }
 
-    // 160 samples of 8 kHz S16 from the mic, every 20 ms
+    /// 160 samples of 8 kHz S16 from the mic, every 20 ms
     func sendVoice(_ pcm: [Int16]) {
         queue.async { [self] in
             guard transmitting, let call, state == .running else { return }
@@ -622,7 +635,9 @@ final class IAXClient {
         call = nil
         registered = false
         transmitting = false
-        if remoteKeyed { setRemoteKeyed(false) }
+        if remoteKeyed {
+            setRemoteKeyed(false)
+        }
     }
 
     private func fail(_ why: String) {

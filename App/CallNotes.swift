@@ -1,13 +1,13 @@
-import Foundation
 import Combine
+import Foundation
 
-// One parsed line from a notes file
+/// One parsed line from a notes file
 struct CallNote: Equatable {
     let call: String
     let note: String
     let source: String
 
-    // Leading emoji, PoLo shows this in the log
+    /// Leading emoji, PoLo shows this in the log
     var emoji: String? {
         guard let first = note.first, first.isEmojiLike else { return nil }
         return String(first)
@@ -38,14 +38,14 @@ struct CallNotesFile: Identifiable, Codable, Equatable {
     )
 }
 
-// Same file format and lookup order as PoLo
+/// Same file format and lookup order as PoLo
 @MainActor
 final class CallNotesStore: ObservableObject {
     @Published private(set) var files: [CallNotesFile] = []
     @Published private(set) var refreshing: Set<String> = []
 
     private var notes: [String: [String: [CallNote]]] = [:]
-    private let maxAge: TimeInterval = 86_400
+    private let maxAge: TimeInterval = 86400
     private let defaultsKey = "callNotesFiles"
     private let dir: URL
 
@@ -54,21 +54,25 @@ final class CallNotesStore: ObservableObject {
         dir = base.appendingPathComponent("callnotes", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         loadFiles()
-        for f in files { loadCache(f) }
+        for f in files {
+            loadCache(f)
+        }
     }
 
     // MARK: - Lookup
 
-    // First match wins, like PoLo findCallNotes
+    /// First match wins, like PoLo findCallNotes
     func note(for call: String) -> CallNote? {
         let key = normalize(call)
         for f in files where f.enabled {
-            if let hit = notes[f.id]?[key]?.first { return hit }
+            if let hit = notes[f.id]?[key]?.first {
+                return hit
+            }
         }
         return nil
     }
 
-    // All matches, like PoLo findAllCallNotes
+    /// All matches, like PoLo findAllCallNotes
     func allNotes(for call: String) -> [CallNote] {
         let key = normalize(call)
         return files.filter(\.enabled).flatMap { notes[$0.id]?[key] ?? [] }
@@ -88,7 +92,9 @@ final class CallNotesStore: ObservableObject {
         let locationChanged = files[i].location != file.location
         files[i] = file
         saveFiles()
-        if locationChanged { Task { await refresh(file.id) } }
+        if locationChanged {
+            Task { await refresh(file.id) }
+        }
     }
 
     func setEnabled(_ id: String, _ on: Bool) {
@@ -113,7 +119,9 @@ final class CallNotesStore: ObservableObject {
     func refreshStale() async {
         for f in files where f.enabled {
             let age = Date().timeIntervalSince(f.lastFetched ?? .distantPast)
-            if age > maxAge { await refresh(f.id) }
+            if age > maxAge {
+                await refresh(f.id)
+            }
         }
     }
 
@@ -128,7 +136,8 @@ final class CallNotesStore: ObservableObject {
             req.setValue("DMRMonitor iOS/0.1", forHTTPHeaderField: "User-Agent")
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard let http = resp as? HTTPURLResponse, http.statusCode == 200,
-                  let body = String(data: data, encoding: .utf8) else {
+                  let body = String(data: data, encoding: .utf8)
+            else {
                 throw NotesError.badResponse
             }
             let parsed = parse(body, source: files[i].name)
@@ -147,12 +156,14 @@ final class CallNotesStore: ObservableObject {
 
     // MARK: - Parsing
 
-    // One call per line, then the note
+    /// One call per line, then the note
     func parse(_ body: String, source: String) -> [String: [CallNote]] {
         var out: [String: [CallNote]] = [:]
         for raw in body.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty || line.hasPrefix("#") { continue }
+            if line.isEmpty || line.hasPrefix("#") {
+                continue
+            }
             let words = line.split(whereSeparator: \.isWhitespace)
             guard let callWord = words.first, callWord.count > 2, words.count > 1 else { continue }
             let call = normalize(String(callWord))
@@ -164,7 +175,9 @@ final class CallNotesStore: ObservableObject {
 
     private func normalize(_ call: String) -> String {
         var c = call.uppercased()
-        if c.hasSuffix("/") { c.removeLast() }
+        if c.hasSuffix("/") {
+            c.removeLast()
+        }
         return c
     }
 
@@ -202,7 +215,8 @@ final class CallNotesStore: ObservableObject {
             let (data, _) = try await URLSession.shared.data(from: url)
             if let html = String(data: data, encoding: .utf8),
                let path = capture(html, #"<a href="([^"]+/raw/[^"]+)""#),
-               let u = URL(string: "https://gist.githubusercontent.com" + path) {
+               let u = URL(string: "https://gist.githubusercontent.com" + path)
+            {
                 return u
             }
             return url
@@ -222,7 +236,8 @@ final class CallNotesStore: ObservableObject {
                let content = fields["fileContent"] as? [String: Any],
                let value = content["value"] as? [String: Any],
                let dl = value["downloadURL"] as? String,
-               let u = URL(string: dl) {
+               let u = URL(string: dl)
+            {
                 return u
             }
             return url
@@ -254,7 +269,8 @@ final class CallNotesStore: ObservableObject {
     private func loadFiles() {
         if let data = UserDefaults.standard.data(forKey: defaultsKey),
            let saved = try? JSONDecoder().decode([CallNotesFile].self, from: data),
-           !saved.isEmpty {
+           !saved.isEmpty
+        {
             files = saved
         } else {
             files = [.hamsOfNote]

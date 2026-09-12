@@ -1,7 +1,7 @@
 import SwiftUI
 
-// Settings block: play back the encoded->decoded copy of the last
-// transmission — exactly what the network heard
+/// Settings block: play back the encoded->decoded copy of the last
+/// transmission — exactly what the network heard
 struct TxMonitorSection: View {
     @EnvironmentObject var model: MonitorModel
 

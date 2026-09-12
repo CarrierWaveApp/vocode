@@ -35,7 +35,7 @@ struct Talkgroup: Codable, Identifiable, Equatable {
     }
 }
 
-// Persisted in UserDefaults via @AppStorage
+/// Persisted in UserDefaults via @AppStorage
 final class Settings: ObservableObject {
     @AppStorage("netMode") var netMode = "openterminal"
     @AppStorage("host") var host = "3103.master.brandmeister.network"
@@ -128,8 +128,8 @@ final class Settings: ObservableObject {
         talkgroupList = list
     }
 
-    // Collapse to one subscribed talkgroup: the TX target if it's live,
-    // else the first live one. No-op when nothing is live.
+    /// Collapse to one subscribed talkgroup: the TX target if it's live,
+    /// else the first live one. No-op when nothing is live.
     func enforceSingleLive() {
         var list = talkgroupList
         let keep = list.firstIndex { $0.tg == UInt32(txTargetTG) && $0.listen == .live }
@@ -140,7 +140,9 @@ final class Settings: ObservableObject {
             list[i].listen = .off
             changed = true
         }
-        if changed { talkgroupList = list }
+        if changed {
+            talkgroupList = list
+        }
         txTargetTG = Int(list[keep].tg)
     }
 
@@ -190,18 +192,18 @@ final class Settings: ObservableObject {
         !qrzUser.trimmingCharacters(in: .whitespaces).isEmpty && !qrzPassword.isEmpty
     }
 
-    // Talkgroups the map's BrandMeister overlay follows
+    /// Talkgroups the map's BrandMeister overlay follows
     var mapOverlayTalkgroups: Set<UInt32> {
         mapOverlayTG > 0 ? [UInt32(mapOverlayTG)] : Set(activeTalkgroups)
     }
 
-    // Subscribed on the network (live + muted)
+    /// Subscribed on the network (live + muted)
     var activeTalkgroups: [UInt32] {
         talkgroupList.filter { $0.tg > 0 && $0.listen != .off }.map(\.tg)
     }
 
-    // Locally silenced (muted + off; off is belt-and-braces for homebrew,
-    // where mid-session unsubscribe isn't possible)
+    /// Locally silenced (muted + off; off is belt-and-braces for homebrew,
+    /// where mid-session unsubscribe isn't possible)
     var silencedTalkgroups: Set<UInt32> {
         Set(talkgroupList.filter { $0.tg > 0 && $0.listen != .live }.map(\.tg))
     }
@@ -214,23 +216,22 @@ final class Settings: ObservableObject {
         talkgroupList.map(\.tg).filter { $0 > 0 }
     }
 
-    // MMDVMHost-style options string for the homebrew RPTO packet;
-    // off talkgroups are left out entirely
+    /// MMDVMHost-style options string for the homebrew RPTO packet;
+    /// off talkgroups are left out entirely
     var homebrewOptions: String {
         activeTalkgroups.enumerated()
             .map { "TS2_\($0.offset + 1)=\($0.element)" }
             .joined(separator: ";")
     }
 
-    // Accepts both MMDVMHost options ("TS2_1=91;TS2_2=3100") and a bare
-    // list ("91;3100" or "91,3100"); used only for one-time migration.
+    /// Accepts both MMDVMHost options ("TS2_1=91;TS2_2=3100") and a bare
+    /// list ("91;3100" or "91,3100"); used only for one-time migration.
     private var legacyTalkgroups: [UInt32] {
         options.split(whereSeparator: { ";,".contains($0) }).compactMap { part in
             let value = part.split(separator: "=").last ?? part
             return UInt32(value.trimmingCharacters(in: .whitespaces))
         }
     }
-
 
     var rewindConfig: RewindConfig? {
         guard let id = UInt32(dmrID.trimmingCharacters(in: .whitespaces)),
@@ -253,7 +254,7 @@ final class Settings: ObservableObject {
         return DExtraConfig(host: host, callsign: call, module: module)
     }
 
-    // Partial config for AllStar; host/port get resolved at connect time
+    /// Partial config for AllStar; host/port get resolved at connect time
     var allstarConfig: IAXConfig? {
         let myNode = aslMyNode.trimmingCharacters(in: .whitespaces)
         let target = aslTarget.trimmingCharacters(in: .whitespaces)
@@ -265,7 +266,7 @@ final class Settings: ObservableObject {
         )
     }
 
-    // Human-readable label for the connected server/reflector
+    /// Human-readable label for the connected server/reflector
     var connectedSummary: String {
         if netMode == "allstar" {
             return "Node \(aslTarget.trimmingCharacters(in: .whitespaces))"

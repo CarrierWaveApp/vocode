@@ -1,6 +1,6 @@
 import Foundation
 
-// A geocoded QRZ record; point == nil && grid == nil is a cached negative
+/// A geocoded QRZ record; point == nil && grid == nil is a cached negative
 struct QRZStation: Equatable, Codable, Sendable {
     let callsign: String
     let point: GeoPoint?
@@ -10,12 +10,17 @@ struct QRZStation: Equatable, Codable, Sendable {
     let source: GeoSource?
     let fetched: Date
 
-    var isNegative: Bool { point == nil && grid == nil }
-    // Best available coordinates: exact fix, else grid center
-    var bestPoint: GeoPoint? { point ?? grid.flatMap(Maidenhead.center) }
+    var isNegative: Bool {
+        point == nil && grid == nil
+    }
+
+    /// Best available coordinates: exact fix, else grid center
+    var bestPoint: GeoPoint? {
+        point ?? grid.flatMap(Maidenhead.center)
+    }
 }
 
-// QRZ XML API lookup: session-key auth, in-memory + disk cache, throttled
+/// QRZ XML API lookup: session-key auth, in-memory + disk cache, throttled
 actor QRZLookup {
     private var username = ""
     private var password = ""
@@ -27,14 +32,16 @@ actor QRZLookup {
     private var inFlight: [String: Task<QRZStation?, Never>] = [:]
     private var lastRequest = Date.distantPast
     private let minInterval: TimeInterval = 0.25
-    private let negativeTTL: TimeInterval = 86_400
+    private let negativeTTL: TimeInterval = 86400
     private let cacheURL: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("qrzcache.json")
     }()
 
-    var isConfigured: Bool { !username.isEmpty && !password.isEmpty && !credentialsBad }
+    var isConfigured: Bool {
+        !username.isEmpty && !password.isEmpty && !credentialsBad
+    }
 
     func configure(username user: String, password pass: String) {
         let trimmed = user.trimmingCharacters(in: .whitespaces)
@@ -97,7 +104,8 @@ actor QRZLookup {
         }
         var point: GeoPoint?
         if let lat = fields["callsign.lat"].flatMap(Double.init),
-           let lon = fields["callsign.lon"].flatMap(Double.init) {
+           let lon = fields["callsign.lon"].flatMap(Double.init)
+        {
             point = GeoPoint(lat: lat, lon: lon)
         }
         let grid = fields["callsign.grid"]
@@ -124,10 +132,12 @@ actor QRZLookup {
     }
 
     private func session() async -> String? {
-        if let sessionKey { return sessionKey }
+        if let sessionKey {
+            return sessionKey
+        }
         guard !credentialsBad else { return nil }
         let fields = await request([
-            "username": username, "password": password, "agent": "dmrmonitor1.0"
+            "username": username, "password": password, "agent": "dmrmonitor1.0",
         ])
         if let key = fields?["session.key"] {
             sessionKey = key
@@ -135,13 +145,14 @@ actor QRZLookup {
         }
         let error = fields?["session.error"] ?? "no response"
         if error.localizedCaseInsensitiveContains("incorrect") ||
-            error.localizedCaseInsensitiveContains("invalid") {
+            error.localizedCaseInsensitiveContains("invalid")
+        {
             credentialsBad = true
         }
         return nil
     }
 
-    // QRZ uses ;-separated params; percent-encode values (passwords may hold ;&=)
+    /// QRZ uses ;-separated params; percent-encode values (passwords may hold ;&=)
     private func request(_ params: [String: String]) async -> [String: String]? {
         let query = params.map { key, val in
             "\(key)=\(val.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? val)"
@@ -175,7 +186,9 @@ actor QRZLookup {
     private func store(_ station: QRZStation) {
         cache[station.callsign] = station
         dirtyCount += 1
-        if dirtyCount >= 20 { flush() }
+        if dirtyCount >= 20 {
+            flush()
+        }
     }
 
     func flush() {
@@ -185,7 +198,7 @@ actor QRZLookup {
     }
 }
 
-// Flattens <Session>/<Callsign> children into "section.element" keys
+/// Flattens <Session>/<Callsign> children into "section.element" keys
 private final class QRZXMLCollector: NSObject, XMLParserDelegate {
     private var fields: [String: String] = [:]
     private var section = ""
@@ -199,8 +212,9 @@ private final class QRZXMLCollector: NSObject, XMLParserDelegate {
         return fields
     }
 
-    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?,
-                qualifiedName: String?, attributes: [String: String] = [:]) {
+    func parser(_: XMLParser, didStartElement name: String, namespaceURI _: String?,
+                qualifiedName _: String?, attributes _: [String: String] = [:])
+    {
         let lowered = name.lowercased()
         if lowered == "session" || lowered == "callsign" {
             section = lowered
@@ -210,12 +224,13 @@ private final class QRZXMLCollector: NSObject, XMLParserDelegate {
         }
     }
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
+    func parser(_: XMLParser, foundCharacters string: String) {
         text += string
     }
 
-    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?,
-                qualifiedName: String?) {
+    func parser(_: XMLParser, didEndElement name: String, namespaceURI _: String?,
+                qualifiedName _: String?)
+    {
         let lowered = name.lowercased()
         guard lowered == element, !section.isEmpty else { return }
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The Buddy watch block in SettingsView's Form
+/// The Buddy watch block in SettingsView's Form
 struct BuddySettingsSection: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var buddyClient: BuddyClient
@@ -44,7 +44,7 @@ struct BuddySettingsSection: View {
     }
 }
 
-// Buddy watch list editor; mirrors the Talkgroups editing block in Settings
+/// Buddy watch list editor; mirrors the Talkgroups editing block in Settings
 struct BuddyListView: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var buddyClient: BuddyClient
@@ -131,9 +131,9 @@ struct BuddyListView: View {
         switch buddyClient.status {
         case .idle: return "idle"
         case .syncing: return "syncing"
-        case .synced(let when):
+        case let .synced(when):
             return "synced \(when.formatted(date: .omitted, time: .shortened))"
-        case .failed(let why): return why
+        case let .failed(why): return why
         }
     }
 
@@ -145,7 +145,7 @@ struct BuddyListView: View {
         }
     }
 
-    // Fill in the DMR ID once a callsign stops changing; best-effort
+    /// Fill in the DMR ID once a callsign stops changing; best-effort
     private func resolveID(_ buddyID: UUID) {
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)

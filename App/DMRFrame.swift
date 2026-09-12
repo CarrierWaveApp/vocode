@@ -15,7 +15,7 @@ enum DataType: UInt8 {
     case other = 15
 }
 
-// One DMRD packet from the homebrew protocol
+/// One DMRD packet from the homebrew protocol
 struct DMRDPacket {
     let seq: UInt8
     let src: UInt32
@@ -49,11 +49,13 @@ struct DMRDPacket {
             voiceSeq: ft == .dataSync ? 0 : low,
             dataType: ft == .dataSync ? (DataType(rawValue: low) ?? .other) : .other,
             streamID: be32(b, 16),
-            payload: Array(b[20..<53])
+            payload: Array(b[20 ..< 53])
         )
     }
 
-    var isVoice: Bool { frameType == .voice || frameType == .voiceSync }
+    var isVoice: Bool {
+        frameType == .voice || frameType == .voiceSync
+    }
 
     private static func be24(_ b: [UInt8], _ i: Int) -> UInt32 {
         UInt32(b[i]) << 16 | UInt32(b[i + 1]) << 8 | UInt32(b[i + 2])
@@ -64,35 +66,35 @@ struct DMRDPacket {
     }
 }
 
-// 33-byte voice burst → three AMBE frames
+/// 33-byte voice burst → three AMBE frames
 struct VoiceBurst {
-    // Interleave schedule from DSD dmr_const.h
+    /// Interleave schedule from DSD dmr_const.h
     private static let rW = [
         0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
         0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 2,
-        0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2
+        0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2,
     ]
     private static let rX = [
         23, 10, 22, 9, 21, 8, 20, 7, 19, 6, 18, 5,
         17, 4, 16, 3, 15, 2, 14, 1, 13, 0, 12, 10,
-        11, 9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4
+        11, 9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4,
     ]
     private static let rY = [
         0, 2, 0, 2, 0, 2, 0, 2, 0, 3, 0, 3,
         1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3,
-        1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3
+        1, 3, 1, 3, 1, 3, 1, 3, 1, 3, 1, 3,
     ]
     private static let rZ = [
         5, 3, 4, 2, 3, 1, 2, 0, 1, 13, 0, 12,
         22, 11, 21, 10, 20, 9, 19, 8, 18, 7, 17, 6,
-        16, 5, 15, 4, 14, 3, 13, 2, 12, 1, 11, 0
+        16, 5, 15, 4, 14, 3, 13, 2, 12, 1, 11, 0,
     ]
 
     let bytes: [UInt8]
 
     init?(_ bytes: [UInt8]) {
         guard bytes.count >= 33 else { return nil }
-        self.bytes = Array(bytes[0..<33])
+        self.bytes = Array(bytes[0 ..< 33])
     }
 
     private func bit(_ i: Int) -> UInt8 {
@@ -108,15 +110,15 @@ struct VoiceBurst {
         f[Self.rY[i] * 24 + Self.rZ[i]] = CChar(d & 1)
     }
 
-    // One standalone 9-byte on-air AMBE frame (as delivered by the Open
-    // Terminal Protocol) → the same [4][24] mbelib cell layout.
+    /// One standalone 9-byte on-air AMBE frame (as delivered by the Open
+    /// Terminal Protocol) → the same [4][24] mbelib cell layout.
     static func ambeFrame(_ b: [UInt8]) -> [CChar]? {
         guard b.count == 9 else { return nil }
         func bit(_ i: Int) -> UInt8 {
             (b[i >> 3] >> (7 - UInt8(i & 7))) & 1
         }
         var f = [CChar](repeating: 0, count: 96)
-        for i in 0..<36 {
+        for i in 0 ..< 36 {
             let d = bit(2 * i) << 1 | bit(2 * i + 1)
             f[rW[i] * 24 + rX[i]] = CChar((d >> 1) & 1)
             f[rY[i] * 24 + rZ[i]] = CChar(d & 1)
@@ -124,30 +126,42 @@ struct VoiceBurst {
         return f
     }
 
-    // Inverse of ambeFrame: mbelib cell layout → 9-byte on-air AMBE frame
+    /// Inverse of ambeFrame: mbelib cell layout → 9-byte on-air AMBE frame
     static func packFrame(_ cells: [CChar]) -> [UInt8]? {
         guard cells.count == 96 else { return nil }
         var b = [UInt8](repeating: 0, count: 9)
-        for i in 0..<36 {
+        for i in 0 ..< 36 {
             let hi = UInt8(bitPattern: Int8(cells[rW[i] * 24 + rX[i]])) & 1
             let lo = UInt8(bitPattern: Int8(cells[rY[i] * 24 + rZ[i]])) & 1
-            if hi == 1 { b[(2 * i) >> 3] |= 1 << (7 - UInt8((2 * i) & 7)) }
-            if lo == 1 { b[(2 * i + 1) >> 3] |= 1 << (7 - UInt8((2 * i + 1) & 7)) }
+            if hi == 1 {
+                b[(2 * i) >> 3] |= 1 << (7 - UInt8((2 * i) & 7))
+            }
+            if lo == 1 {
+                b[(2 * i + 1) >> 3] |= 1 << (7 - UInt8((2 * i + 1) & 7))
+            }
         }
         return b
     }
 
-    // Each frame is [4][24] flattened
+    /// Each frame is [4][24] flattened
     func ambeFrames() -> [[CChar]] {
         var f1 = [CChar](repeating: 0, count: 96)
         var f2 = [CChar](repeating: 0, count: 96)
         var f3 = [CChar](repeating: 0, count: 96)
 
-        for i in 0..<36 { place(&f1, i, dibit(i)) }
-        for i in 0..<18 { place(&f2, i, dibit(36 + i)) }
+        for i in 0 ..< 36 {
+            place(&f1, i, dibit(i))
+        }
+        for i in 0 ..< 18 {
+            place(&f2, i, dibit(36 + i))
+        }
         // Dibits 54..77 are sync or embedded signalling
-        for i in 18..<36 { place(&f2, i, dibit(60 + i)) }
-        for i in 0..<36 { place(&f3, i, dibit(96 + i)) }
+        for i in 18 ..< 36 {
+            place(&f2, i, dibit(60 + i))
+        }
+        for i in 0 ..< 36 {
+            place(&f3, i, dibit(96 + i))
+        }
 
         return [f1, f2, f3]
     }

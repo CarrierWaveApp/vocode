@@ -24,7 +24,8 @@ struct NodePickerView: View {
             if node.node.hasPrefix(needle)
                 || node.callsign.lowercased().contains(needle)
                 || node.desc.lowercased().contains(needle)
-                || node.location.lowercased().contains(needle) {
+                || node.location.lowercased().contains(needle)
+            {
                 matches.append(node)
             }
         }

@@ -1,13 +1,13 @@
 import Foundation
 
-// G.711 µ-law, the codec AllStar links negotiate. 8 kHz, one byte per
-// sample, so a 20 ms IAX frame is 160 bytes.
+/// G.711 µ-law, the codec AllStar links negotiate. 8 kHz, one byte per
+/// sample, so a 20 ms IAX frame is 160 bytes.
 enum Ulaw {
     private static let bias = 132
     private static let clip = 32635
 
-    // Byte → linear sample, precomputed once
-    static let table: [Int16] = (0...255).map { decodeByte(UInt8($0)) }
+    /// Byte → linear sample, precomputed once
+    static let table: [Int16] = (0 ... 255).map { decodeByte(UInt8($0)) }
 
     private static func decodeByte(_ byte: UInt8) -> Int16 {
         let inverted = ~byte
@@ -20,8 +20,12 @@ enum Ulaw {
     static func encode(_ sample: Int16) -> UInt8 {
         var magnitude = Int(sample)
         let sign: UInt8 = magnitude < 0 ? 0x80 : 0
-        if magnitude < 0 { magnitude = -magnitude }
-        if magnitude > clip { magnitude = clip }
+        if magnitude < 0 {
+            magnitude = -magnitude
+        }
+        if magnitude > clip {
+            magnitude = clip
+        }
         magnitude += bias
         // Exponent is the position of the highest set bit of (magnitude >> 7)
         let top = magnitude >> 7

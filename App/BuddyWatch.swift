@@ -1,8 +1,8 @@
 import Foundation
 import UserNotifications
 
-// One watched station. The app owns the list; the server holds a replica
-// replaced wholesale on every sync.
+/// One watched station. The app owns the list; the server holds a replica
+/// replaced wholesale on every sync.
 struct Buddy: Codable, Identifiable, Equatable {
     var id: UUID
     var callsign: String
@@ -11,7 +11,8 @@ struct Buddy: Codable, Identifiable, Equatable {
     var talkgroups: [UInt32]
 
     init(id: UUID = UUID(), callsign: String = "", dmrID: UInt32 = 0,
-         label: String = "", talkgroups: [UInt32] = []) {
+         label: String = "", talkgroups: [UInt32] = [])
+    {
         self.id = id
         self.callsign = callsign
         self.dmrID = dmrID
@@ -36,14 +37,14 @@ enum BuddyStatus: Equatable {
     case failed(String)
 }
 
-// Talks to the dmr-lookout server: device registration + watch-list sync.
+/// Talks to the dmr-lookout server: device registration + watch-list sync.
 @MainActor
 final class BuddyClient: ObservableObject {
     @Published var status: BuddyStatus = .idle
 
-    // Wire the APNs token callback and kick a registration if enabled.
-    // Idempotent; called from the root view's task. Every bail-out sets a
-    // visible status — a silent "idle" cost a debugging round once.
+    /// Wire the APNs token callback and kick a registration if enabled.
+    /// Idempotent; called from the root view's task. Every bail-out sets a
+    /// visible status — a silent "idle" cost a debugging round once.
     func startup(_ settings: Settings) {
         PushManager.shared.onToken = { [weak self] token in
             Task { await self?.registerAndSync(settings, apnsToken: token) }
@@ -81,9 +82,9 @@ final class BuddyClient: ObservableObject {
                 // Debug (xc deploy) builds vend sandbox APNs tokens;
                 // Release (TestFlight/App Store) builds vend production
                 #if DEBUG
-                let apnsEnv = "sandbox"
+                    let apnsEnv = "sandbox"
                 #else
-                let apnsEnv = "production"
+                    let apnsEnv = "production"
                 #endif
                 try await post(settings, path: "/v1/devices", body: [
                     "device_id": settings.buddyDeviceID,
@@ -91,7 +92,7 @@ final class BuddyClient: ObservableObject {
                     "apns_env": apnsEnv,
                     "platform": "ios",
                     "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"]
-                        as? String ?? ""
+                        as? String ?? "",
                 ])
                 settings.buddyLastToken = apnsToken
                 // A fresh registration must re-sync regardless of list hash
@@ -104,14 +105,14 @@ final class BuddyClient: ObservableObject {
         }
     }
 
-    // PUT the whole list; the app is the source of truth
+    /// PUT the whole list; the app is the source of truth
     func syncWatches(_ settings: Settings) async throws {
         let list = settings.buddyList.map { buddy in
             [
                 "callsign": buddy.callsign,
                 "dmr_id": buddy.dmrID,
                 "label": buddy.label,
-                "talkgroups": buddy.talkgroups
+                "talkgroups": buddy.talkgroups,
             ] as [String: Any]
         }
         let data = try JSONSerialization.data(withJSONObject: list)
@@ -122,9 +123,9 @@ final class BuddyClient: ObservableObject {
         settings.buddyLastSynced = hash
     }
 
-    // Re-sync if the list changed since the last successful PUT. A device
-    // that never registered (no token POSTed yet) needs the full startup
-    // path first — a bare watch PUT for an unknown device can't succeed.
+    /// Re-sync if the list changed since the last successful PUT. A device
+    /// that never registered (no token POSTed yet) needs the full startup
+    /// path first — a bare watch PUT for an unknown device can't succeed.
     func syncIfNeeded(_ settings: Settings) {
         guard settings.buddyWatchEnabled, settings.buddyConfigured,
               !settings.buddyDeviceID.isEmpty else { return }
@@ -157,7 +158,7 @@ final class BuddyClient: ObservableObject {
         }
     }
 
-    // Best-effort deregistration when the toggle goes off
+    /// Best-effort deregistration when the toggle goes off
     func deregister(_ settings: Settings) {
         guard settings.buddyConfigured, !settings.buddyDeviceID.isEmpty else { return }
         settings.buddyLastToken = ""
@@ -166,8 +167,8 @@ final class BuddyClient: ObservableObject {
         Task { try? await send(settings, path: path, method: "DELETE", body: nil) }
     }
 
-    // Resolve a callsign to its DMR ID via radioid.net (the inverse of
-    // CallsignLookup); best-effort at buddy-add time
+    /// Resolve a callsign to its DMR ID via radioid.net (the inverse of
+    /// CallsignLookup); best-effort at buddy-add time
     static func dmrID(forCallsign call: String) async -> UInt32? {
         let normalized = call.trimmingCharacters(in: .whitespaces).uppercased()
         guard !normalized.isEmpty,
@@ -188,7 +189,8 @@ final class BuddyClient: ObservableObject {
     }
 
     private func send(_ settings: Settings, path: String, method: String,
-                      body: Data?) async throws {
+                      body: Data?) async throws
+    {
         guard let url = URL(string: settings.buddyServerURL + path) else {
             throw BuddyError.badURL
         }
@@ -201,7 +203,7 @@ final class BuddyClient: ObservableObject {
         }
         let (payload, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw BuddyError.badResponse }
-        guard (200..<300).contains(http.statusCode) else {
+        guard (200 ..< 300).contains(http.statusCode) else {
             let text = String(bytes: payload, encoding: .utf8) ?? ""
             throw BuddyError.server(http.statusCode, text)
         }
@@ -217,7 +219,7 @@ enum BuddyError: LocalizedError {
         switch self {
         case .badURL: return "bad server URL"
         case .badResponse: return "bad response"
-        case .server(let code, let text):
+        case let .server(code, text):
             return text.isEmpty ? "server error \(code)" : "\(code): \(text)"
         }
     }

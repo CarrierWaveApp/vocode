@@ -1,13 +1,13 @@
-import Foundation
 import AVFoundation
+import Foundation
 
-// Audio session mode switching around transmit
+/// Audio session mode switching around transmit
 extension MonitorModel {
-    // RX runs under .playback so Bluetooth headphones get the A2DP route
-    // (full quality, reliable). The mic needs .playAndRecord, so flip to it
-    // only while keyed up; HFP is what carries a headset mic. TX uses
-    // .voiceChat — the voice-optimized input chain (AGC/EQ/AEC) — not
-    // .spokenAudio, which is a playback mode and leaves the mic raw.
+    /// RX runs under .playback so Bluetooth headphones get the A2DP route
+    /// (full quality, reliable). The mic needs .playAndRecord, so flip to it
+    /// only while keyed up; HFP is what carries a headset mic. TX uses
+    /// .voiceChat — the voice-optimized input chain (AGC/EQ/AEC) — not
+    /// .spokenAudio, which is a playback mode and leaves the mic raw.
     func setTransmitAudioSession(_ transmitting: Bool) {
         let session = AVAudioSession.sharedInstance()
         do {
@@ -25,14 +25,14 @@ extension MonitorModel {
         }
     }
 
-    // What the network heard: play back the encoded->decoded copy of the
-    // last transmission
+    /// What the network heard: play back the encoded->decoded copy of the
+    /// last transmission
     func playLastTX() {
         playMonitor(txMonitor.audio)
     }
 
-    // The conditioned mic BEFORE the codec — bisects capture problems
-    // from codec problems
+    /// The conditioned mic BEFORE the codec — bisects capture problems
+    /// from codec problems
     func playLastMic() {
         playMonitor(txMonitor.micAudio)
     }
@@ -45,5 +45,7 @@ extension MonitorModel {
         output.play(audio)
     }
 
-    var hasLastTX: Bool { !txMonitor.audio.isEmpty }
+    var hasLastTX: Bool {
+        !txMonitor.audio.isEmpty
+    }
 }

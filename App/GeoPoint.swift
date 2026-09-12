@@ -1,21 +1,21 @@
 import Foundation
 
-// Plain value type so MonitorModel never imports MapKit
-// (CLLocationCoordinate2D is not Equatable/Codable)
+/// Plain value type so MonitorModel never imports MapKit
+/// (CLLocationCoordinate2D is not Equatable/Codable)
 struct GeoPoint: Equatable, Hashable, Codable {
     let lat: Double
     let lon: Double
 }
 
-// Where a station's coordinates came from, for pin confidence on the map
+/// Where a station's coordinates came from, for pin confidence on the map
 enum GeoSource: String, Codable {
-    case qrz    // exact lat/lon from the operator's QRZ record
-    case grid   // Maidenhead grid square center
-    case dxcc   // country centroid only
+    case qrz // exact lat/lon from the operator's QRZ record
+    case grid // Maidenhead grid square center
+    case dxcc // country centroid only
 }
 
 enum Maidenhead {
-    // Center of a 4- or 6-character grid square (e.g. "FN31" / "FN31pr")
+    /// Center of a 4- or 6-character grid square (e.g. "FN31" / "FN31pr")
     static func center(_ grid: String) -> GeoPoint? {
         let chars = Array(grid.uppercased())
         guard chars.count >= 4,
@@ -30,7 +30,8 @@ enum Maidenhead {
 
         if chars.count >= 6,
            let subLon = value(chars[4], base: "A", limit: 24),
-           let subLat = value(chars[5], base: "A", limit: 24) {
+           let subLat = value(chars[5], base: "A", limit: 24)
+        {
             lon += Double(subLon) * 2 / 24 + 1.0 / 24
             lat += Double(subLat) * 1 / 24 + 0.5 / 24
         } else {

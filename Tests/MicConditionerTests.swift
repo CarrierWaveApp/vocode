@@ -1,10 +1,10 @@
-import XCTest
 @testable import DMRMonitor
+import XCTest
 
 final class MicConditionerTests: XCTestCase {
     private func sine(_ frequency: Float, amplitude: Float, frames: Int) -> [[Int16]] {
-        (0..<frames).map { frame in
-            (0..<160).map { index in
+        (0 ..< frames).map { frame in
+            (0 ..< 160).map { index in
                 let sampleIndex = Float(frame * 160 + index)
                 let value = amplitude * sin(2 * .pi * frequency * sampleIndex / 8000)
                 return Int16(max(-32767, min(32767, value * 32767)))
@@ -37,9 +37,9 @@ final class MicConditionerTests: XCTestCase {
     }
 
     func testRumbleIsAttenuatedMoreThanSpeech() {
-        // Measure the first frames only: with isolated tones the AGC
-        // eventually re-boosts whatever the filter removed, but early
-        // frames show the raw high-pass response
+        /// Measure the first frames only: with isolated tones the AGC
+        /// eventually re-boosts whatever the filter removed, but early
+        /// frames show the raw high-pass response
         func residual(_ frequency: Float) -> Float {
             var conditioner = MicConditioner()
             var total: Float = 0
@@ -56,7 +56,7 @@ final class MicConditionerTests: XCTestCase {
     func testSilenceIsNotAmplifiedIntoHiss() {
         var conditioner = MicConditioner()
         var frame = [Int16](repeating: 12, count: 160)
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             var copy = frame
             conditioner.process(&copy)
             frame = [Int16](repeating: 12, count: 160)

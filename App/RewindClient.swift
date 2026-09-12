@@ -1,6 +1,6 @@
+import CryptoKit
 import Foundation
 import Network
-import CryptoKit
 
 struct RewindConfig {
     var host: String
@@ -83,7 +83,7 @@ final class RewindClient {
                 self.sendKeepAlive()
                 self.startTimer()
                 self.receiveLoop()
-            case .failed(let err):
+            case let .failed(err):
                 self.fail(err.localizedDescription)
             case .cancelled:
                 self.state = .idle
@@ -114,7 +114,7 @@ final class RewindClient {
     private func sendFrame(_ type: MsgType, _ payload: [UInt8]) {
         var d = Data(Self.sign)
         d.append(le16(type.rawValue))
-        d.append(le16(0))               // flags
+        d.append(le16(0)) // flags
         d.append(le32(seq))
         seq &+= 1
         d.append(le16(UInt16(payload.count)))
@@ -141,7 +141,7 @@ final class RewindClient {
     private func sendSubscriptions() {
         for tg in config.talkgroups {
             log("→ subscribe TG \(tg)")
-            var payload = [UInt8](le32(7))      // 7 = group call
+            var payload = [UInt8](le32(7)) // 7 = group call
             payload.append(contentsOf: le32(tg))
             sendFrame(.subscription, payload)
         }
@@ -149,8 +149,8 @@ final class RewindClient {
 
     // MARK: - Transmit
 
-    // FLC body as pyspot builds it: flags, feature set, service options,
-    // then 3-byte BE dst and src
+    /// FLC body as pyspot builds it: flags, feature set, service options,
+    /// then 3-byte BE dst and src
     private func flcPayload(dst: UInt32, src: UInt32) -> [UInt8] {
         var p: [UInt8] = [0x00, 0x00, 0x04]
         p.append(contentsOf: [UInt8((dst >> 16) & 0xFF), UInt8((dst >> 8) & 0xFF), UInt8(dst & 0xFF)])
@@ -162,7 +162,7 @@ final class RewindClient {
     private func sendRT(_ type: MsgType, _ payload: [UInt8]) {
         var d = Data(Self.sign)
         d.append(le16(type.rawValue))
-        d.append(le16(1))               // REWIND_FLAG_REAL_TIME_1
+        d.append(le16(1)) // REWIND_FLAG_REAL_TIME_1
         d.append(le32(rtSeq))
         rtSeq &+= 1
         d.append(le16(UInt16(payload.count)))
@@ -178,7 +178,7 @@ final class RewindClient {
         }
     }
 
-    // 27 bytes: three 9-byte on-air AMBE frames (60 ms of audio)
+    /// 27 bytes: three 9-byte on-air AMBE frames (60 ms of audio)
     func sendTransmitAudio(_ bytes: [UInt8]) {
         queue.async { [weak self] in
             guard let self, self.state == .running, bytes.count == 27 else { return }
@@ -196,7 +196,7 @@ final class RewindClient {
         }
     }
 
-    // Runtime subscription change while connected
+    /// Runtime subscription change while connected
     func setSubscription(_ tg: UInt32, active: Bool) {
         queue.async { [weak self] in
             guard let self, self.state == .running else { return }
@@ -232,15 +232,19 @@ final class RewindClient {
     private func receiveLoop() {
         conn?.receiveMessage { [weak self] data, _, _, error in
             guard let self else { return }
-            if let data { self.handle(data) }
-            if error == nil { self.receiveLoop() }
+            if let data {
+                self.handle(data)
+            }
+            if error == nil {
+                self.receiveLoop()
+            }
         }
     }
 
     private func handle(_ data: Data) {
         let b = [UInt8](data)
         guard b.count >= Self.sign.count + 10,
-              Array(b[0..<Self.sign.count]) == Self.sign else { return }
+              Array(b[0 ..< Self.sign.count]) == Self.sign else { return }
 
         let base = Self.sign.count
         let rawType = UInt16(b[base]) | UInt16(b[base + 1]) << 8
@@ -292,7 +296,9 @@ final class RewindClient {
         case .report, .busyNotice:
             let text = String(decoding: payload, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines.union(.controlCharacters))
-            if !text.isEmpty { log("← master: \(text)") }
+            if !text.isEmpty {
+                log("← master: \(text)")
+            }
 
         case .addressNotice, .bindingNotice:
             break
@@ -325,7 +331,7 @@ final class RewindClient {
         lastHeaderSeq = msgSeq
 
         if isNew, isGroup {
-            currentCallID = UInt32.random(in: 1...UInt32.max)
+            currentCallID = UInt32.random(in: 1 ... UInt32.max)
             currentDst = dst
             onCallStart?(currentCallID, src, dst)
         }
@@ -335,7 +341,7 @@ final class RewindClient {
         guard payload.count == 27 else { return }
         var frames: [[CChar]] = []
         for i in stride(from: 0, to: 27, by: 9) {
-            if let f = VoiceBurst.ambeFrame(Array(payload[i..<(i + 9)])) {
+            if let f = VoiceBurst.ambeFrame(Array(payload[i ..< (i + 9)])) {
                 frames.append(f)
             }
         }

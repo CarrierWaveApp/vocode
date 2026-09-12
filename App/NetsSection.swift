@@ -1,8 +1,8 @@
 import SwiftUI
 
-// Main-screen "// NETS" card: the next couple of upcoming nets with a
-// countdown and one-tap Join. body IS a Section so ContentView only
-// inserts `NetsSection()`.
+/// Main-screen "// NETS" card: the next couple of upcoming nets with a
+/// countdown and one-tap Join. body IS a Section so ContentView only
+/// inserts `NetsSection()`.
 struct NetsSection: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
@@ -34,7 +34,7 @@ struct NetsSection: View {
         }
     }
 
-    // Next two enabled nets by start time; recomputed on each timeline tick
+    /// Next two enabled nets by start time; recomputed on each timeline tick
     private var upcoming: [(net: Net, start: Date)] {
         let now = Date()
         return settings.netList

@@ -1,9 +1,9 @@
-import Foundation
-import Combine
 import AVFoundation
+import Combine
+import Foundation
 
 struct HeardEntry: Identifiable, Equatable {
-    let id: UInt32          // streamID
+    let id: UInt32 // streamID
     let src: UInt32
     let dst: UInt32
     let slot: Int
@@ -19,7 +19,9 @@ struct HeardEntry: Identifiable, Equatable {
     var point: GeoPoint?
     var geoSource: GeoSource?
 
-    var isActive: Bool { ended == nil }
+    var isActive: Bool {
+        ended == nil
+    }
 }
 
 struct LogEntry: Identifiable {
@@ -33,7 +35,7 @@ struct LogEntry: Identifiable {
 final class MonitorModel: ObservableObject {
     @Published var link: LinkState = .idle
     @Published var heard: [HeardEntry] = []
-    // Ad-hoc mutes for talkgroups not in the configured list
+    /// Ad-hoc mutes for talkgroups not in the configured list
     @Published var muted: Set<UInt32> = []
     // Configured talkgroups silenced via listen state (muted or off)
     private var silenced: Set<UInt32> = []
@@ -70,7 +72,9 @@ final class MonitorModel: ObservableObject {
     let maxHeard = 200
     private let maxLog = 300
 
-    var isConnected: Bool { link == .running }
+    var isConnected: Bool {
+        link == .running
+    }
 
     init(notes: CallNotesStore) {
         self.notes = notes
@@ -88,7 +92,9 @@ final class MonitorModel: ObservableObject {
 
     func connect(_ settings: Settings) {
         disconnect()
-        if settings.singleTG { settings.enforceSingleLive() }
+        if settings.singleTG {
+            settings.enforceSingleLive()
+        }
         if settings.netMode == "homebrew" {
             connectHomebrew(settings)
         } else if settings.netMode == "dstar" {
@@ -193,7 +199,9 @@ final class MonitorModel: ObservableObject {
     }
 
     func disconnect() {
-        if transmitting { endTransmit() }
+        if transmitting {
+            endTransmit()
+        }
         if client != nil || rewind != nil || dstarClient != nil || iaxClient != nil {
             appendLog("disconnected")
         }
@@ -213,15 +221,23 @@ final class MonitorModel: ObservableObject {
         link = .idle
     }
 
-    func clearLog() { log.removeAll() }
+    func clearLog() {
+        log.removeAll()
+    }
 
     func appendLog(_ line: String, error: Bool = false) {
         log.insert(LogEntry(line: line, isError: error), at: 0)
-        if log.count > maxLog { log.removeLast() }
+        if log.count > maxLog {
+            log.removeLast()
+        }
     }
 
     func toggleMute(_ tg: UInt32) {
-        if muted.contains(tg) { muted.remove(tg) } else { muted.insert(tg) }
+        if muted.contains(tg) {
+            muted.remove(tg)
+        } else {
+            muted.insert(tg)
+        }
         pipeline.setMuted(muted.union(silenced))
     }
 
@@ -229,8 +245,8 @@ final class MonitorModel: ObservableObject {
         muted.contains(tg) || silenced.contains(tg)
     }
 
-    // Push the configured listen states into the audio path and, on OTP,
-    // diff the network subscriptions live.
+    /// Push the configured listen states into the audio path and, on OTP,
+    /// diff the network subscriptions live.
     func applyListenStates(_ settings: Settings) {
         silenced = settings.silencedTalkgroups
         pipeline.setMuted(muted.union(silenced))
@@ -300,7 +316,9 @@ final class MonitorModel: ObservableObject {
         rewind.startTransmit(dst: dst)
         transmitting = true
         txBursts.insert(TXBurst(dst: dst, started: Date()), at: 0)
-        if txBursts.count > 50 { txBursts.removeLast() }
+        if txBursts.count > 50 {
+            txBursts.removeLast()
+        }
     }
 
     func endTransmit() {
@@ -320,7 +338,9 @@ final class MonitorModel: ObservableObject {
         setTransmitAudioSession(false)
     }
 
-    func clearHeard() { heard.removeAll() }
+    func clearHeard() {
+        heard.removeAll()
+    }
 
     private func openCall(_ pkt: DMRDPacket) {
         openCall(id: pkt.streamID, src: pkt.src, dst: pkt.dst, slot: pkt.slot)
@@ -335,15 +355,21 @@ final class MonitorModel: ObservableObject {
             slot: slot, started: Date()
         )
         heard.insert(entry, at: 0)
-        if heard.count > maxHeard { heard.removeLast() }
+        if heard.count > maxHeard {
+            heard.removeLast()
+        }
 
         Task {
             let call = await lookup.callsign(for: src)
             if let i = heard.firstIndex(where: { $0.id == id }) {
                 heard[i].callsign = call
-                if let call { heard[i].note = notes.note(for: call) }
+                if let call {
+                    heard[i].note = notes.note(for: call)
+                }
             }
-            if let call { await geocode(streamID: id, callsign: call) }
+            if let call {
+                await geocode(streamID: id, callsign: call)
+            }
         }
     }
 

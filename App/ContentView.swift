@@ -77,17 +77,17 @@ struct ContentView: View {
                             muted: model.isSilenced(entry.dst),
                             tgName: settings.tgName(entry.dst)
                         )
-                            .swipeActions {
-                                Button(model.isSilenced(entry.dst) ? "Unmute TG" : "Mute TG") {
-                                    if let state = settings.listenState(entry.dst) {
-                                        settings.setListen(entry.dst, state == .live ? .muted : .live)
-                                        model.applyListenStates(settings)
-                                    } else {
-                                        model.toggleMute(entry.dst)
-                                    }
+                        .swipeActions {
+                            Button(model.isSilenced(entry.dst) ? "Unmute TG" : "Mute TG") {
+                                if let state = settings.listenState(entry.dst) {
+                                    settings.setListen(entry.dst, state == .live ? .muted : .live)
+                                    model.applyListenStates(settings)
+                                } else {
+                                    model.toggleMute(entry.dst)
                                 }
-                                .tint(CW.amber)
                             }
+                            .tint(CW.amber)
+                        }
                     }
                 } header: {
                     SectionLabel("Last heard")
@@ -194,8 +194,8 @@ struct ContentView: View {
         }
     }
 
-    // Lives in the nav bar as the principal item: dot, summary, chevron.
-    // Tapping toggles the connection section in the list.
+    /// Lives in the nav bar as the principal item: dot, summary, chevron.
+    /// Tapping toggles the connection section in the list.
     private var headerStatus: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) { connExpanded.toggle() }
@@ -325,8 +325,8 @@ struct TGRow: View {
     }
 }
 
-// Picks the TX destination for the talk bar: the linked node on
-// AllStar, the selected talkgroup everywhere else
+/// Picks the TX destination for the talk bar: the linked node on
+/// AllStar, the selected talkgroup everywhere else
 struct TalkBarHost: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
@@ -356,8 +356,8 @@ struct TalkBarHost: View {
 }
 
 struct TalkBar: View {
-    let title: String?   // TX destination display name
-    let tag: String?     // "TG 3100" or "NODE 55553"
+    let title: String? // TX destination display name
+    let tag: String? // "TG 3100" or "NODE 55553"
     let armed: Bool
     let transmitting: Bool
     let onPress: () -> Void
@@ -391,7 +391,9 @@ struct TalkBar: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { _ in
-                            if armed, !transmitting { onPress() }
+                            if armed, !transmitting {
+                                onPress()
+                            }
                         }
                         .onEnded { _ in onRelease() }
                 )
@@ -407,7 +409,9 @@ struct TalkBar: View {
 
     private var subtitle: String {
         guard let tag else { return "SELECT IN TALKGROUPS" }
-        if transmitting { return "TRANSMITTING · \(tag)" }
+        if transmitting {
+            return "TRANSMITTING · \(tag)"
+        }
         return armed ? "TX TARGET · \(tag)" : "TX DISARMED · \(tag)"
     }
 }
@@ -532,7 +536,7 @@ struct Tag: View {
     }
 }
 
-// QRZ credentials for map geocoding, split out to keep SettingsView readable
+/// QRZ credentials for map geocoding, split out to keep SettingsView readable
 private struct QRZSection: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var model: MonitorModel
@@ -556,7 +560,7 @@ private struct QRZSection: View {
     }
 }
 
-// Per-mode station credentials, split out to keep SettingsView readable
+/// Per-mode station credentials, split out to keep SettingsView readable
 private struct StationSection: View {
     @EnvironmentObject var settings: Settings
 
@@ -605,8 +609,8 @@ struct SettingsView: View {
     @StateObject private var scout = MasterScout()
     @StateObject private var pinger = ICMPPinger()
 
-    // The Master row shows the selection by directory name when the host is
-    // a known BrandMeister master, or the raw host otherwise.
+    /// The Master row shows the selection by directory name when the host is
+    /// a known BrandMeister master, or the raw host otherwise.
     private var serverLabel: String {
         guard let selected = BMDirectory.master(forHost: settings.host) else {
             return settings.host
@@ -639,18 +643,22 @@ struct SettingsView: View {
         return host
     }
 
-    // Directory reflectors carry a baked IP; a custom host only gets a
-    // badge when it's already a literal IPv4 address (no DNS here)
+    /// Directory reflectors carry a baked IP; a custom host only gets a
+    /// badge when it's already a literal IPv4 address (no DNS here)
     private var selectedReflectorIP: String? {
         let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-        if let reflector = XLXDirectory.reflector(forHost: host) { return reflector.ipAddress }
+        if let reflector = XLXDirectory.reflector(forHost: host) {
+            return reflector.ipAddress
+        }
         var probe = in_addr()
         return inet_pton(AF_INET, host, &probe) == 1 ? host : nil
     }
 
     private func probeSelected() {
         if settings.netMode == "dstar" {
-            if let address = selectedReflectorIP { pinger.ping([address]) }
+            if let address = selectedReflectorIP {
+                pinger.ping([address])
+            }
             return
         }
         guard settings.netMode == "openterminal" else { return }
@@ -834,7 +842,9 @@ struct SettingsView: View {
             .cwList()
             .onAppear {
                 probeSelected()
-                if settings.netMode == "allstar" { ASLDirectory.shared.loadIfNeeded() }
+                if settings.netMode == "allstar" {
+                    ASLDirectory.shared.loadIfNeeded()
+                }
             }
             .onChange(of: settings.host) { _, _ in probeSelected() }
             .onChange(of: settings.otpPort) { _, _ in probeSelected() }

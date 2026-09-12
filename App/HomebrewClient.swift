@@ -1,6 +1,6 @@
+import CryptoKit
 import Foundation
 import Network
-import CryptoKit
 
 struct HomebrewConfig {
     var host: String
@@ -33,12 +33,12 @@ enum LinkState: Equatable {
         case .configuring: return "Sending config"
         case .options: return "Sending options"
         case .running: return "Connected"
-        case .failed(let why): return "Failed: \(why)"
+        case let .failed(why): return "Failed: \(why)"
         }
     }
 }
 
-// Speaks the MMDVM homebrew repeater protocol
+/// Speaks the MMDVM homebrew repeater protocol
 final class HomebrewClient {
     private let config: HomebrewConfig
     private let queue = DispatchQueue(label: "homebrew.net")
@@ -57,7 +57,7 @@ final class HomebrewClient {
 
     init(config: HomebrewConfig) {
         self.config = config
-        self.idBytes = withUnsafeBytes(of: config.repeaterID.bigEndian, Array.init)
+        idBytes = withUnsafeBytes(of: config.repeaterID.bigEndian, Array.init)
     }
 
     func connect() {
@@ -76,7 +76,7 @@ final class HomebrewClient {
                 self.log("udp socket ready")
                 self.sendLogin()
                 self.receiveLoop()
-            case .failed(let err):
+            case let .failed(err):
                 self.fail(err.localizedDescription)
             case .cancelled:
                 self.state = .idle
@@ -174,8 +174,12 @@ final class HomebrewClient {
     private func receiveLoop() {
         conn?.receiveMessage { [weak self] data, _, _, error in
             guard let self else { return }
-            if let data { self.handle(data) }
-            if error == nil { self.receiveLoop() }
+            if let data {
+                self.handle(data)
+            }
+            if error == nil {
+                self.receiveLoop()
+            }
         }
     }
 
@@ -184,10 +188,14 @@ final class HomebrewClient {
         let b = [UInt8](data)
 
         if hasPrefix(b, "DMRD") {
-            if let pkt = DMRDPacket.parse(data) { onPacket?(pkt) }
+            if let pkt = DMRDPacket.parse(data) {
+                onPacket?(pkt)
+            }
             return
         }
-        if hasPrefix(b, "MSTPONG") { return }
+        if hasPrefix(b, "MSTPONG") {
+            return
+        }
         if hasPrefix(b, "MSTNAK") {
             fail("master refused login")
             return
@@ -207,7 +215,7 @@ final class HomebrewClient {
         switch state {
         case .login:
             guard ack.count >= 10 else { return fail("short ack") }
-            sendAuth(salt: Array(ack[6..<10]))
+            sendAuth(salt: Array(ack[6 ..< 10]))
         case .authorising:
             sendConfig()
         case .configuring:
@@ -256,7 +264,7 @@ final class HomebrewClient {
 
     private func hasPrefix(_ b: [UInt8], _ tag: String) -> Bool {
         let t = Array(tag.utf8)
-        return b.count >= t.count && Array(b[0..<t.count]) == t
+        return b.count >= t.count && Array(b[0 ..< t.count]) == t
     }
 
     private func pad(_ s: String, _ n: Int) -> String {

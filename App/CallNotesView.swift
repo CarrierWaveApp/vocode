@@ -76,7 +76,9 @@ struct CallNotesRow: View {
     }
 
     private var subtitle: String {
-        if let err = file.lastError { return err }
+        if let err = file.lastError {
+            return err
+        }
         guard let when = file.lastFetched else { return "Not loaded yet" }
         return "\(file.entryCount) calls · \(when.formatted(.relative(presentation: .named)))"
     }
@@ -135,7 +137,7 @@ struct CallNotesEditor: View {
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty
-                              || location.trimmingCharacters(in: .whitespaces).isEmpty)
+                        || location.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }

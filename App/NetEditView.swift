@@ -1,7 +1,7 @@
 import SwiftUI
 
-// Per-net editor. Edits write straight into settings.netList; reminders
-// are rebuilt once on the way out, never per keystroke.
+/// Per-net editor. Edits write straight into settings.netList; reminders
+/// are rebuilt once on the way out, never per keystroke.
 struct NetEditView: View {
     @EnvironmentObject var settings: Settings
     let netID: UUID
@@ -10,7 +10,7 @@ struct NetEditView: View {
         var ids = [
             "UTC", "America/New_York", "America/Chicago", "America/Denver",
             "America/Phoenix", "America/Los_Angeles", "America/Anchorage",
-            "Pacific/Honolulu", "Europe/London"
+            "Pacific/Honolulu", "Europe/London",
         ]
         if !ids.contains(TimeZone.current.identifier) {
             ids.append(TimeZone.current.identifier)
@@ -46,7 +46,7 @@ struct NetEditView: View {
                     }
                 }
                 Stepper("Duration: \(net.durationMin) min",
-                        value: durationBinding, in: 15...240, step: 15)
+                        value: durationBinding, in: 15 ... 240, step: 15)
             } header: {
                 SectionLabel("Schedule")
             } footer: {
@@ -107,7 +107,7 @@ struct NetEditView: View {
         Self.zones.contains(net.timeZoneID) ? Self.zones : Self.zones + [net.timeZoneID]
     }
 
-    // Round-trip the wall time through a Date so DatePicker can edit it
+    /// Round-trip the wall time through a Date so DatePicker can edit it
     private var timeBinding: Binding<Date> {
         Binding(
             get: {
@@ -132,7 +132,7 @@ struct NetEditView: View {
 
     private var weekdayRow: some View {
         HStack(spacing: 8) {
-            ForEach(1...7, id: \.self) { day in
+            ForEach(1 ... 7, id: \.self) { day in
                 let selected = net.weekdays.contains(day)
                 Button {
                     update { current in
@@ -164,7 +164,9 @@ struct NetEditView: View {
             set: { enabled in
                 update { current in
                     if enabled {
-                        if !current.leads.contains(lead) { current.leads.append(lead) }
+                        if !current.leads.contains(lead) {
+                            current.leads.append(lead)
+                        }
                     } else {
                         current.leads.removeAll { $0 == lead }
                     }

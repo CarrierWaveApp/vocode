@@ -1,13 +1,13 @@
 import Foundation
 
-// One scheduled net. `id` is the merge key for share/import: a club
-// re-publishing its schedule updates in place instead of duplicating.
+/// One scheduled net. `id` is the merge key for share/import: a club
+/// re-publishing its schedule updates in place instead of duplicating.
 struct Net: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
     var network: String
     var talkgroup: UInt32
-    // Calendar weekday numbering: 1 = Sunday … 7 = Saturday
+    /// Calendar weekday numbering: 1 = Sunday … 7 = Saturday
     var weekdays: [Int]
     // Wall-clock start in `timeZoneID` — nets are published in a fixed
     // zone, so a device travelling doesn't shift the net
@@ -23,7 +23,8 @@ struct Net: Codable, Identifiable, Equatable {
     init(id: UUID = UUID(), name: String = "", network: String = "BrandMeister",
          talkgroup: UInt32 = 0, weekdays: [Int] = [], hour: Int = 19, minute: Int = 0,
          timeZoneID: String = TimeZone.current.identifier, durationMin: Int = 60,
-         leads: [Int] = [10], enabled: Bool = true, notes: String = "") {
+         leads: [Int] = [10], enabled: Bool = true, notes: String = "")
+    {
         self.id = id
         self.name = name
         self.network = network
@@ -38,8 +39,8 @@ struct Net: Codable, Identifiable, Equatable {
         self.notes = notes
     }
 
-    // Lenient like Talkgroup: one malformed element must not throw away
-    // an entire imported list
+    /// Lenient like Talkgroup: one malformed element must not throw away
+    /// an entire imported list
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -67,16 +68,16 @@ struct Net: Codable, Identifiable, Equatable {
     }
 }
 
-// Share/import envelope; import also accepts a bare [Net] array
+/// Share/import envelope; import also accepts a bare [Net] array
 struct NetsFile: Codable {
     var version: Int
     var nets: [Net]
 }
 
 enum NetSchedule {
-    // Next start after `now`. Zone goes on the CALENDAR here;
-    // UNCalendarNotificationTrigger wants it on the DateComponents
-    // instead — the two APIs have opposite conventions.
+    /// Next start after `now`. Zone goes on the CALENDAR here;
+    /// UNCalendarNotificationTrigger wants it on the DateComponents
+    /// instead — the two APIs have opposite conventions.
     static func nextOccurrence(of net: Net, after now: Date) -> Date? {
         occurrences(of: net, after: now, limit: 1).first
     }
@@ -106,7 +107,7 @@ enum NetSchedule {
         return found
     }
 
-    // Within [start, start + duration) of the most recent occurrence
+    /// Within [start, start + duration) of the most recent occurrence
     static func isLive(_ net: Net, at now: Date) -> Bool {
         let lookback = now.addingTimeInterval(-Double(net.durationMin) * 60)
         guard let start = nextOccurrence(of: net, after: lookback) else { return false }
@@ -115,9 +116,13 @@ enum NetSchedule {
 
     static func countdown(to date: Date, from now: Date) -> String {
         let seconds = Int(date.timeIntervalSince(now))
-        if seconds <= 0 { return "now" }
+        if seconds <= 0 {
+            return "now"
+        }
         let minutes = (seconds + 59) / 60
-        if minutes < 60 { return "in \(minutes)m" }
+        if minutes < 60 {
+            return "in \(minutes)m"
+        }
         if minutes < 48 * 60 {
             return "in \(minutes / 60)h \(minutes % 60)m"
         }

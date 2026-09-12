@@ -19,19 +19,25 @@ final class ICMPPinger: ObservableObject {
     private static let timeout: TimeInterval = 2.5
 
     deinit {
-        if sock >= 0 { close(sock) }
+        if sock >= 0 {
+            close(sock)
+        }
     }
 
-    // Called from the main thread
+    /// Called from the main thread
     func ping(_ ips: [String]) {
         cancel()
         let targets = Array(Set(ips)).filter { !$0.isEmpty }
         guard !targets.isEmpty else { return }
-        for address in targets { results[address] = .probing }
+        for address in targets {
+            results[address] = .probing
+        }
 
         let icmpSock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP)
         guard icmpSock >= 0 else {
-            for address in targets { results[address] = .unreachable }
+            for address in targets {
+                results[address] = .unreachable
+            }
             return
         }
         sock = icmpSock
@@ -136,7 +142,9 @@ final class ICMPPinger: ObservableObject {
             fresh = [:]
         }
         guard !batch.isEmpty else { return }
-        for (address, state) in batch { results[address] = state }
+        for (address, state) in batch {
+            results[address] = state
+        }
     }
 
     private static func checksum(_ bytes: [UInt8]) -> UInt16 {
@@ -146,8 +154,12 @@ final class ICMPPinger: ObservableObject {
             sum &+= UInt32(bytes[index]) << 8 | UInt32(bytes[index + 1])
             index += 2
         }
-        if index < bytes.count { sum &+= UInt32(bytes[index]) << 8 }
-        while sum >> 16 != 0 { sum = (sum & 0xFFFF) &+ (sum >> 16) }
+        if index < bytes.count {
+            sum &+= UInt32(bytes[index]) << 8
+        }
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) &+ (sum >> 16)
+        }
         return UInt16(~sum & 0xFFFF)
     }
 }

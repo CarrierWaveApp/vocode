@@ -1,7 +1,7 @@
-import Foundation
 import AVFoundation
+import Foundation
 
-// AllStar (IAX2) connection and transmit paths
+/// AllStar (IAX2) connection and transmit paths
 extension MonitorModel {
     func connectAllStar(_ settings: Settings) {
         guard var cfg = settings.allstarConfig else {
@@ -47,8 +47,8 @@ extension MonitorModel {
         iax.connect()
     }
 
-    // One heard entry per remote key-up. AllStar is analog and carries no
-    // per-talker identity, so entries show the linked node itself.
+    /// One heard entry per remote key-up. AllStar is analog and carries no
+    /// per-talker identity, so entries show the linked node itself.
     private func openAllStarCall(target: String) {
         for index in heard.indices where heard[index].isActive {
             heard[index].ended = Date()
@@ -62,7 +62,9 @@ extension MonitorModel {
         entry.channel = "Node \(target)"
         entry.dstar = true
         heard.insert(entry, at: 0)
-        if heard.count > maxHeard { heard.removeLast() }
+        if heard.count > maxHeard {
+            heard.removeLast()
+        }
         Task { await geocode(streamID: entry.id, callsign: call) }
     }
 
@@ -81,8 +83,8 @@ extension MonitorModel {
         }
     }
 
-    // Straight PCM to µ-law, no vocoder: mic frames go to the IAX client
-    // as-is and keying is implied by audio presence
+    /// Straight PCM to µ-law, no vocoder: mic frames go to the IAX client
+    /// as-is and keying is implied by audio presence
     private func startAllStarTx(_ iax: IAXClient, node: String) {
         setTransmitAudioSession(true)
         txMonitor.reset()
@@ -105,6 +107,8 @@ extension MonitorModel {
         iax.startTransmit()
         transmitting = true
         txBursts.insert(TXBurst(dst: 0, started: Date(), channel: "Node \(node)"), at: 0)
-        if txBursts.count > 50 { txBursts.removeLast() }
+        if txBursts.count > 50 {
+            txBursts.removeLast()
+        }
     }
 }

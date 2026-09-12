@@ -6,7 +6,7 @@ struct CallsignInfo: Equatable {
     let location: String?
 }
 
-// radioid.net lookup with cache
+/// radioid.net lookup with cache
 actor CallsignLookup {
     private var cache: [UInt32: CallsignInfo] = [:]
 
@@ -15,7 +15,9 @@ actor CallsignLookup {
     }
 
     func info(for id: UInt32) async -> CallsignInfo? {
-        if let hit = cache[id] { return hit }
+        if let hit = cache[id] {
+            return hit
+        }
         guard let url = URL(string: "https://radioid.net/api/dmr/user/?id=\(id)") else { return nil }
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

@@ -26,7 +26,8 @@ struct MasterPickerView: View {
                     .foregroundStyle(CW.dim)
             }
             if let fastestID = scout.fastest,
-               let fastest = BMDirectory.all.first(where: { $0.id == fastestID }) {
+               let fastest = BMDirectory.all.first(where: { $0.id == fastestID })
+            {
                 Section {
                     row(fastest)
                 } header: {
@@ -133,7 +134,7 @@ struct LatencyBadge: View {
             Text("· · ·")
                 .font(CW.mono(12))
                 .foregroundStyle(CW.xdim)
-        case .reachable(let millis)?:
+        case let .reachable(millis)?:
             Text("\(millis) ms")
                 .font(CW.mono(12))
                 .foregroundStyle(millis <= 100 ? CW.green : CW.amber)

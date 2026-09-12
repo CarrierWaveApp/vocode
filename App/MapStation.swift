@@ -1,7 +1,7 @@
 import Foundation
 
-// One map pin: a station, merged from the local heard list and the
-// BrandMeister overlay. Pure logic, no UI.
+/// One map pin: a station, merged from the local heard list and the
+/// BrandMeister overlay. Pure logic, no UI.
 struct MapStation: Identifiable, Equatable {
     enum Kind { case local, overlay }
 
@@ -23,9 +23,9 @@ struct MapStation: Identifiable, Equatable {
 }
 
 enum MapStationMerge {
-    // One pin per station: collapse local entries by src (list is
-    // newest-first), drop anything without coordinates or past TTL, and
-    // let a local pin win over its overlay duplicate.
+    /// One pin per station: collapse local entries by src (list is
+    /// newest-first), drop anything without coordinates or past TTL, and
+    /// let a local pin win over its overlay duplicate.
     static func stations(
         heard: [HeardEntry],
         overlay: [UInt32: BMStation],

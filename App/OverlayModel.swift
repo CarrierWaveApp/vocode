@@ -1,7 +1,7 @@
-import Foundation
 import Combine
+import Foundation
 
-// A station seen on the BrandMeister last-heard overlay
+/// A station seen on the BrandMeister last-heard overlay
 struct BMStation: Equatable {
     let dmrID: UInt32
     let callsign: String
@@ -13,9 +13,9 @@ struct BMStation: Equatable {
     var geoSource: GeoSource?
 }
 
-// Owns the BM last-heard socket and the overlay station set. Lives on
-// MonitorModel so pins survive popping the map, but the socket only runs
-// while the map is on screen (the raw stream is all of BrandMeister).
+/// Owns the BM last-heard socket and the overlay station set. Lives on
+/// MonitorModel so pins survive popping the map, but the socket only runs
+/// while the map is on screen (the raw stream is all of BrandMeister).
 @MainActor
 final class OverlayModel: ObservableObject {
     @Published private(set) var stations: [UInt32: BMStation] = [:]
@@ -27,14 +27,16 @@ final class OverlayModel: ObservableObject {
     private var geocodeTried: Set<String> = []
     private let maxStations = 300
     private let stationTTL: TimeInterval = 15 * 60
-    // Force-clear "on air" when a Session-Stop never arrives
+    /// Force-clear "on air" when a Session-Stop never arrives
     private let activeTimeout: TimeInterval = 300
 
     init(qrz: QRZLookup) {
         self.qrz = qrz
     }
 
-    var isRunning: Bool { client != nil }
+    var isRunning: Bool {
+        client != nil
+    }
 
     func start(talkgroups: Set<UInt32>) {
         if let client {
@@ -76,7 +78,7 @@ final class OverlayModel: ObservableObject {
         state = .idle
     }
 
-    // Clear pins so a talkgroup change doesn't leave stale stations behind
+    /// Clear pins so a talkgroup change doesn't leave stale stations behind
     func setTalkgroups(_ tgs: Set<UInt32>) {
         stations.removeAll()
         if let client {
@@ -110,14 +112,18 @@ final class OverlayModel: ObservableObject {
                 station.active = call.active
                 station.talkgroup = call.destinationID
             }
-            if station.name == nil { station.name = call.sourceName }
+            if station.name == nil {
+                station.name = call.sourceName
+            }
             stations[call.sourceID] = station
-            if station.point == nil { geocode(station) }
+            if station.point == nil {
+                geocode(station)
+            }
         }
         evict()
     }
 
-    // One QRZ attempt per callsign per app session
+    /// One QRZ attempt per callsign per app session
     private func geocode(_ station: BMStation) {
         guard geocodeTried.insert(station.callsign).inserted else { return }
         Task {

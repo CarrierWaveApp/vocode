@@ -1,21 +1,21 @@
-import XCTest
 @testable import DMRMonitor
+import XCTest
 
 final class UlawTests: XCTestCase {
-    // G.711 µ-law is exact on its own codewords: decoding then re-encoding
-    // any byte returns that byte. 0x7F is the one exception (negative
-    // zero decodes to 0, which re-encodes as positive zero 0xFF).
+    /// G.711 µ-law is exact on its own codewords: decoding then re-encoding
+    /// any byte returns that byte. 0x7F is the one exception (negative
+    /// zero decodes to 0, which re-encodes as positive zero 0xFF).
     func testCodewordRoundTrip() {
-        for byte in UInt8(0)...UInt8(255) where byte != 0x7F {
+        for byte in UInt8(0) ... UInt8(255) where byte != 0x7F {
             let sample = Ulaw.table[Int(byte)]
             XCTAssertEqual(Ulaw.encode(sample), byte, "byte \(byte) → \(sample)")
         }
     }
 
     func testKnownValues() {
-        XCTAssertEqual(Ulaw.table[0xFF], 0)          // positive zero
-        XCTAssertEqual(Ulaw.table[0x80], 32124)      // most positive
-        XCTAssertEqual(Ulaw.table[0x00], -32124)     // most negative
+        XCTAssertEqual(Ulaw.table[0xFF], 0) // positive zero
+        XCTAssertEqual(Ulaw.table[0x80], 32124) // most positive
+        XCTAssertEqual(Ulaw.table[0x00], -32124) // most negative
         XCTAssertEqual(Ulaw.encode(0), 0xFF)
     }
 

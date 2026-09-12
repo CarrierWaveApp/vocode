@@ -1,15 +1,15 @@
 import Foundation
 
-// Seeds the last-heard list from BrandMeister's lastheard history, so
-// opening or connecting the app shows recent talking instead of an
-// empty list that only fills while connected.
+/// Seeds the last-heard list from BrandMeister's lastheard history, so
+/// opening or connecting the app shows recent talking instead of an
+/// empty list that only fills while connected.
 extension MonitorModel {
     func refreshHistory(_ settings: Settings) {
         let talkgroups = Set(settings.activeTalkgroups)
         // BM history only makes sense against BrandMeister
         guard !talkgroups.isEmpty,
               settings.netMode == "openterminal"
-                || settings.host.contains("brandmeister"),
+              || settings.host.contains("brandmeister"),
               Date().timeIntervalSince(lastHistorySeed) > 60
         else { return }
         lastHistorySeed = Date()

@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-// One call event from the BrandMeister last-heard stream
+/// One call event from the BrandMeister last-heard stream
 struct BMCall: Equatable {
     let sourceID: UInt32
     let sourceCall: String
@@ -13,9 +13,9 @@ struct BMCall: Equatable {
     let time: Date
 }
 
-// Minimal Engine.IO v4 / Socket.IO client for BrandMeister's last-heard
-// feed. The raw stream is all of BrandMeister; events are filtered by
-// talkgroup on the socket queue before delivery.
+/// Minimal Engine.IO v4 / Socket.IO client for BrandMeister's last-heard
+/// feed. The raw stream is all of BrandMeister; events are filtered by
+/// talkgroup on the socket queue before delivery.
 final class BrandmeisterLH {
     var onState: ((LinkState) -> Void)?
     var onLog: ((String, Bool) -> Void)?
@@ -35,7 +35,11 @@ final class BrandmeisterLH {
     private var loggedFirstFrame = false
 
     private var state: LinkState = .idle {
-        didSet { if state != oldValue { onState?(state) } }
+        didSet {
+            if state != oldValue {
+                onState?(state)
+            }
+        }
     }
 
     init(talkgroups: Set<UInt32>) {
@@ -58,8 +62,8 @@ final class BrandmeisterLH {
         }
     }
 
-    // The feed is room-based (join-only, no leave), so a talkgroup change
-    // means a reconnect
+    /// The feed is room-based (join-only, no leave), so a talkgroup change
+    /// means a reconnect
     func setTalkgroups(_ tgs: Set<UInt32>) {
         queue.async {
             guard tgs != self.talkgroups else { return }
@@ -72,10 +76,10 @@ final class BrandmeisterLH {
 
     // MARK: - Connection
 
-    // Network.framework, not URLSessionWebSocketTask: the server negotiates
-    // HTTP/2, and iOS's websocket task then attempts RFC 8441 websockets-
-    // over-h2, which BM's socket.io backend rejects ("bad response from
-    // the server"). NWProtocolWebSocket always does an HTTP/1.1 upgrade.
+    /// Network.framework, not URLSessionWebSocketTask: the server negotiates
+    /// HTTP/2, and iOS's websocket task then attempts RFC 8441 websockets-
+    /// over-h2, which BM's socket.io backend rejects ("bad response from
+    /// the server"). NWProtocolWebSocket always does an HTTP/1.1 upgrade.
     private func open() {
         teardown()
         guard !talkgroups.isEmpty else {
@@ -95,11 +99,11 @@ final class BrandmeisterLH {
         socket.stateUpdateHandler = { [weak self] update in
             guard let self, socket === self.conn, !self.stopped else { return }
             switch update {
-            case .failed(let error):
+            case let .failed(error):
                 self.onLog?("BM feed: \(error.localizedDescription)", true)
                 self.state = .failed(error.localizedDescription)
                 self.scheduleReconnect()
-            case .waiting(let error):
+            case let .waiting(error):
                 self.onLog?("BM feed waiting: \(error.localizedDescription)", true)
             default:
                 break
@@ -126,7 +130,7 @@ final class BrandmeisterLH {
         teardown()
         attempts += 1
         let base = min(30.0, pow(2.0, Double(attempts - 1)))
-        let jitter = Double.random(in: 0.8...1.2)
+        let jitter = Double.random(in: 0.8 ... 1.2)
         let delay = base * jitter
         // Keep any .failed reason visible during the backoff wait;
         // open() flips to .connecting when the retry actually starts
@@ -182,9 +186,14 @@ final class BrandmeisterLH {
 
     private func handleOpen(_ text: String) {
         if let data = text.dropFirst().data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let millis = json["pingInterval"] as? Double { pingInterval = millis / 1000 }
-            if let millis = json["pingTimeout"] as? Double { pingTimeout = millis / 1000 }
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            if let millis = json["pingInterval"] as? Double {
+                pingInterval = millis / 1000
+            }
+            if let millis = json["pingTimeout"] as? Double {
+                pingTimeout = millis / 1000
+            }
         }
         send("40")
     }
@@ -216,16 +225,16 @@ final class BrandmeisterLH {
         return json
     }
 
-    // History replay: same mqtt events the live stream uses, tagged
-    // "LH-Startup", terminated by searchHouseComplete. This is the only
-    // history API BrandMeister has — there is no REST endpoint for it.
+    /// History replay: same mqtt events the live stream uses, tagged
+    /// "LH-Startup", terminated by searchHouseComplete. This is the only
+    /// history API BrandMeister has — there is no REST endpoint for it.
     private func requestBacklog() {
         let rules = talkgroups.map { group in
             ["id": "DestinationID", "operator": "equal", "value": Int(group)] as [String: Any]
         }
         let request: [String: Any] = [
             "query": ["condition": "OR", "rules": rules],
-            "amount": 25
+            "amount": 25,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: request),
               let json = String(data: data, encoding: .utf8) else { return }
@@ -255,11 +264,17 @@ final class BrandmeisterLH {
         ))
     }
 
-    // BM ships numerics as Int, Double, or String depending on the day
+    /// BM ships numerics as Int, Double, or String depending on the day
     private func number(_ value: Any?) -> UInt32? {
-        if let num = value as? Int, num >= 0, num <= UInt32.max { return UInt32(num) }
-        if let num = value as? Double, num >= 0, num <= Double(UInt32.max) { return UInt32(num) }
-        if let str = value as? String { return UInt32(str) }
+        if let num = value as? Int, num >= 0, num <= UInt32.max {
+            return UInt32(num)
+        }
+        if let num = value as? Double, num >= 0, num <= Double(UInt32.max) {
+            return UInt32(num)
+        }
+        if let str = value as? String {
+            return UInt32(str)
+        }
         return nil
     }
 

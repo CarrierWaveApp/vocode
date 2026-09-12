@@ -1,5 +1,5 @@
-import SwiftUI
 import MapKit
+import SwiftUI
 
 extension GeoPoint {
     var coordinate: CLLocationCoordinate2D {
@@ -7,7 +7,7 @@ extension GeoPoint {
     }
 }
 
-// Full-screen map of heard stations plus the BrandMeister overlay
+/// Full-screen map of heard stations plus the BrandMeister overlay
 struct StationMapView: View {
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
@@ -100,7 +100,7 @@ struct StationMapView: View {
         overlay.start(talkgroups: settings.mapOverlayTalkgroups)
     }
 
-    // Older pins fade toward 0.35 across their TTL
+    /// Older pins fade toward 0.35 across their TTL
     private func fade(for station: MapStation) -> Double {
         guard !station.active else { return 1 }
         let ttl = station.kind == .local ? localTTL : overlayTTL
@@ -121,10 +121,12 @@ struct StationMapView: View {
         }
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(
-                latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
+                latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2
+            ),
             span: MKCoordinateSpan(
                 latitudeDelta: max(4, (maxLat - minLat) * 1.4),
-                longitudeDelta: max(4, (maxLon - minLon) * 1.4))
+                longitudeDelta: max(4, (maxLon - minLon) * 1.4)
+            )
         )
         withAnimation { camera = .region(region) }
     }
@@ -150,7 +152,11 @@ struct StationMapView: View {
                 overlay.setTalkgroups(settings.mapOverlayTalkgroups)
             }
             .onChange(of: settings.mapOverlay) { _, enabled in
-                if enabled { startFeed() } else { overlay.stop() }
+                if enabled {
+                    startFeed()
+                } else {
+                    overlay.stop()
+                }
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -176,7 +182,7 @@ struct StationMapView: View {
                 }
                 Spacer()
                 Text("\(stations.filter { $0.kind == .overlay }.count) network · " +
-                     "\(stations.filter { $0.kind == .local }.count) heard")
+                    "\(stations.filter { $0.kind == .local }.count) heard")
                     .foregroundStyle(CW.dim)
             }
             .font(CW.mono(11))
@@ -204,7 +210,9 @@ struct StationMapView: View {
     }
 
     private var overlayStateText: String {
-        if case .failed(let why) = overlay.state { return why }
+        if case let .failed(why) = overlay.state {
+            return why
+        }
         return overlay.state == .running ? "live" : String(describing: overlay.state)
     }
 }
@@ -316,8 +324,12 @@ private struct StationCard: View {
 
     private func relative(_ date: Date) -> String {
         let seconds = Int(now.timeIntervalSince(date))
-        if seconds < 60 { return "\(seconds)s ago" }
-        if seconds < 3600 { return "\(seconds / 60)m ago" }
+        if seconds < 60 {
+            return "\(seconds)s ago"
+        }
+        if seconds < 3600 {
+            return "\(seconds / 60)m ago"
+        }
         return "\(seconds / 3600)h \(seconds % 3600 / 60)m ago"
     }
 }

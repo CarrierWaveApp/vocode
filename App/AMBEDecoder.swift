@@ -1,20 +1,22 @@
-import Foundation
 import AVFoundation
 import CMBELib
+import Foundation
 
-// Wraps mbelib for AMBE+2 3600x2450
+/// Wraps mbelib for AMBE+2 3600x2450
 final class AMBEDecoder {
     private var ctx = ambe_ctx()
     private let quality: Int32 = 3
     private(set) var lastErrors: Int32 = 0
 
-    init() { reset() }
+    init() {
+        reset()
+    }
 
     func reset() {
         ambe_ctx_init(&ctx)
     }
 
-    // 96-cell frame → 160 float samples
+    /// 96-cell frame → 160 float samples
     func decode(_ frame: [CChar]) -> [Float] {
         var out = [Int16](repeating: 0, count: 160)
         frame.withUnsafeBufferPointer { frameBuf in
@@ -25,7 +27,7 @@ final class AMBEDecoder {
         return out.map { Float($0) / 32768.0 }
     }
 
-    // D-STAR variant: 96-cell frame through the 3600x2400 path
+    /// D-STAR variant: 96-cell frame through the 3600x2400 path
     func decode2400(_ frame: [CChar]) -> [Float] {
         var out = [Int16](repeating: 0, count: 160)
         frame.withUnsafeBufferPointer { frameBuf in
@@ -37,7 +39,7 @@ final class AMBEDecoder {
     }
 }
 
-// 8 kHz mono playback through AVAudioEngine
+/// 8 kHz mono playback through AVAudioEngine
 final class AudioOutput {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
@@ -92,7 +94,7 @@ final class AudioOutput {
               let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count),
               let ch = buf.floatChannelData?[0] else { return }
         buf.frameLength = count
-        for i in 0..<samples.count {
+        for i in 0 ..< samples.count {
             ch[i] = max(-1, min(1, samples[i] * gain))
         }
         player.scheduleBuffer(buf)

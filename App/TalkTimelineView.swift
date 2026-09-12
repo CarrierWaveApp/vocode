@@ -7,7 +7,9 @@ struct TalkBurst: Identifiable {
     let dst: UInt32
     var channel: String?
 
-    var id: Date { start }
+    var id: Date {
+        start
+    }
 }
 
 /// One station row on the activity timeline. src 0 is ourselves.
@@ -20,9 +22,11 @@ struct StationLane: Identifiable {
     let note: CallNote?
     let bursts: [TalkBurst]
 
-    var id: UInt32 { src }
+    var id: UInt32 {
+        src
+    }
 
-    // Active bursts sort as future so live talkers float to the top
+    /// Active bursts sort as future so live talkers float to the top
     var lastActivity: Date {
         bursts.map { $0.end ?? Date.distantFuture }.max() ?? .distantPast
     }
@@ -43,7 +47,7 @@ struct TalkTimelineView: View {
     private static let labelWidth: CGFloat = 92
 
     private let palette: [Color] = [
-        CW.green, CW.amber, .purple, .cyan, CW.red, .pink, .mint, .indigo
+        CW.green, CW.amber, .purple, .cyan, CW.red, .pink, .mint, .indigo,
     ]
 
     var body: some View {
@@ -182,8 +186,8 @@ struct StationDetailView: View {
     let color: Color
     @State private var info: CallsignInfo?
 
-    // Fall back to a lookup on the radioid-resolved callsign, which covers
-    // our own lane when the callsign field is empty (Open Terminal mode)
+    /// Fall back to a lookup on the radioid-resolved callsign, which covers
+    /// our own lane when the callsign field is empty (Open Terminal mode)
     private var displayedNote: CallNote? {
         lane.note ?? info.flatMap { notes.note(for: $0.callsign) }
     }

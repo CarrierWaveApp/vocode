@@ -10,7 +10,9 @@ struct BMMaster: Identifiable {
     let id: UInt16
     let country: String
 
-    var host: String { "\(id).master.brandmeister.network" }
+    var host: String {
+        "\(id).master.brandmeister.network"
+    }
 }
 
 /// Masters grouped for the picker. Static on purpose: BrandMeister has no
@@ -24,7 +26,7 @@ enum BMDirectory {
             BMMaster(id: 3102, country: "United States"),
             BMMaster(id: 3103, country: "United States"),
             BMMaster(id: 3104, country: "United States"),
-            BMMaster(id: 3341, country: "Mexico")
+            BMMaster(id: 3341, country: "Mexico"),
         ]),
         ("Europe", [
             BMMaster(id: 2322, country: "Austria"),
@@ -56,28 +58,30 @@ enum BMDirectory {
             BMMaster(id: 2402, country: "Sweden"),
             BMMaster(id: 2282, country: "Switzerland"),
             BMMaster(id: 2551, country: "Ukraine"),
-            BMMaster(id: 2341, country: "United Kingdom")
+            BMMaster(id: 2341, country: "United Kingdom"),
         ]),
         ("Asia & Middle East", [
             BMMaster(id: 4602, country: "China"),
             BMMaster(id: 4251, country: "Israel"),
             BMMaster(id: 5021, country: "Malaysia"),
             BMMaster(id: 5151, country: "Philippines"),
-            BMMaster(id: 4501, country: "South Korea")
+            BMMaster(id: 4501, country: "South Korea"),
         ]),
         ("Oceania", [
-            BMMaster(id: 5051, country: "Australia")
+            BMMaster(id: 5051, country: "Australia"),
         ]),
         ("Africa", [
-            BMMaster(id: 6551, country: "South Africa")
+            BMMaster(id: 6551, country: "South Africa"),
         ]),
         ("South America", [
             BMMaster(id: 7242, country: "Brazil"),
-            BMMaster(id: 7301, country: "Chile")
-        ])
+            BMMaster(id: 7301, country: "Chile"),
+        ]),
     ]
 
-    static var all: [BMMaster] { regions.flatMap(\.masters) }
+    static var all: [BMMaster] {
+        regions.flatMap(\.masters)
+    }
 
     static func master(forHost host: String) -> BMMaster? {
         all.first { $0.host == host.trimmingCharacters(in: .whitespaces) }
@@ -116,7 +120,7 @@ final class MasterScout: ObservableObject {
         results
             .filter { $0.key != Self.customKey }
             .compactMap { key, value -> (UInt16, Int)? in
-                guard case .reachable(let millis) = value else { return nil }
+                guard case let .reachable(millis) = value else { return nil }
                 return (key, millis)
             }
             .min { $0.1 < $1.1 }?
@@ -159,8 +163,8 @@ final class MasterScout: ObservableObject {
         connections = [:]
     }
 
-    // Runs on main. Records one probe's outcome and fires the completion
-    // when this generation's last probe lands.
+    /// Runs on main. Records one probe's outcome and fires the completion
+    /// when this generation's last probe lands.
     private func settle(_ masterID: UInt16, _ state: ProbeState, _ probeGeneration: Int) {
         guard probeGeneration == generation else { return }
         results[masterID] = state
@@ -169,8 +173,9 @@ final class MasterScout: ObservableObject {
         let done = completion
         completion = { _ in }
         if let fastestID = fastest,
-           case .reachable(let millis)? = results[fastestID],
-           let master = BMDirectory.all.first(where: { $0.id == fastestID }) {
+           case let .reachable(millis)? = results[fastestID],
+           let master = BMDirectory.all.first(where: { $0.id == fastestID })
+        {
             done((master, millis))
         } else {
             done(nil)
@@ -217,9 +222,9 @@ final class MasterScout: ObservableObject {
         queue.asyncAfter(deadline: .now() + Self.timeout) { finish(.unreachable) }
     }
 
-    // Mirrors RewindClient's framing: sign, type, flags, sequence, payload
-    // length, payload. Type 0x0000 is keep-alive with the Open Terminal
-    // service identifier; ID 0 still draws a challenge from the master.
+    /// Mirrors RewindClient's framing: sign, type, flags, sequence, payload
+    /// length, payload. Type 0x0000 is keep-alive with the Open Terminal
+    /// service identifier; ID 0 still draws a challenge from the master.
     private static func keepAliveFrame(dmrID: UInt32) -> Data {
         var payload = Data()
         payload.append(le32(dmrID))
