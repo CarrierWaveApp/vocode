@@ -72,6 +72,9 @@ final class MonitorModel: ObservableObject {
     var lastHistorySeed = Date.distantPast
     var historyFeed: BrandmeisterLH?
     var txPending = false
+    // TX time-out timer, latched from settings at key-up; 0 = off
+    var txTimeoutSecs = 0
+    var txTimeoutTask: Task<Void, Never>?
     var dstarClient: DExtraClient?
     var iaxClient: IAXClient?
     // Invalidates an in-flight AllStar DNS resolution on disconnect/reconnect
@@ -187,6 +190,7 @@ final class MonitorModel: ObservableObject {
     // MARK: - Transmit
 
     func beginTransmit(_ settings: Settings) {
+        txTimeoutSecs = settings.txTimeoutSecs
         if iaxClient != nil {
             beginAllStarTransmit(settings)
             return
@@ -215,6 +219,8 @@ final class MonitorModel: ObservableObject {
         guard transmitting else {
             return
         }
+        txTimeoutTask?.cancel()
+        txTimeoutTask = nil
         mic?.stop()
         mic = nil
         txBatcher = nil
@@ -228,6 +234,25 @@ final class MonitorModel: ObservableObject {
             txBursts[index].ended = Date()
         }
         setTransmitAudioSession(false)
+    }
+
+    /// Arms the TX time-out timer; called from both DMR and AllStar
+    /// key-up paths after `transmitting` flips true
+    func startTxTimeout() {
+        txTimeoutTask?.cancel()
+        guard txTimeoutSecs > 0 else {
+            txTimeoutTask = nil
+            return
+        }
+        let secs = txTimeoutSecs
+        txTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(secs))
+            guard !Task.isCancelled, let self, transmitting else {
+                return
+            }
+            appendLog("TX timeout after \(secs)s — transmission stopped")
+            endTransmit()
+        }
     }
 
     func clearHeard() {
@@ -371,6 +396,7 @@ final class MonitorModel: ObservableObject {
         txDst = dst
         rewind.startTransmit(dst: dst)
         transmitting = true
+        startTxTimeout()
         txBursts.insert(TXBurst(dst: dst, started: Date()), at: 0)
         if txBursts.count > 50 {
             txBursts.removeLast()

@@ -112,6 +112,7 @@ extension MonitorModel {
         mic = capture
         iax.startTransmit()
         transmitting = true
+        startTxTimeout()
         txBursts.insert(TXBurst(dst: 0, started: Date(), channel: "Node \(node)"), at: 0)
         if txBursts.count > 50 {
             txBursts.removeLast()

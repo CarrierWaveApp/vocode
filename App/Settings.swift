@@ -92,6 +92,11 @@ final class Settings: ObservableObject {
     // Default: exactly one talkgroup subscribed at a time; going live on
     // one switches the others off. Turn off for multi-talkgroup monitoring.
     @AppStorage("singleTG") var singleTG = true
+    // Push-to-talk style: false = hold to talk, true = tap to key up and
+    // tap again to stop
+    @AppStorage("pttToggle") var pttToggle = false
+    // TX time-out timer in seconds; 0 disables it
+    @AppStorage("txTimeoutSecs") var txTimeoutSecs = 120
     // QRZ XML API credentials for map geocoding; plain AppStorage matches
     // the existing hotspot-password precedent
     @AppStorage("qrzUser") var qrzUser = ""

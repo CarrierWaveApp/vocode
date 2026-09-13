@@ -344,34 +344,37 @@ struct TGRow: View {
 
 // MARK: - TalkBarHost
 
-/// Picks the TX destination for the talk bar: the linked node on
-/// AllStar, the selected talkgroup everywhere else
+/// Hosts the talk bar and the expanded talk sheet it opens
 struct TalkBarHost: View {
+    // MARK: Internal
+
     @EnvironmentObject var model: MonitorModel
     @EnvironmentObject var settings: Settings
 
     var body: some View {
-        if settings.netMode == "allstar" {
-            let node = settings.aslTarget.trimmingCharacters(in: .whitespaces)
-            TalkBar(
-                title: "Node \(node)",
-                tag: "NODE \(node)",
-                armed: true,
-                transmitting: model.transmitting,
-                onPress: { model.beginTransmit(settings) },
-                onRelease: { model.endTransmit() }
-            )
-        } else {
-            TalkBar(
-                title: settings.txTarget.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name },
-                tag: settings.txTarget.map { "TG \($0.tg)" },
-                armed: settings.txTarget?.listen == .live,
-                transmitting: model.transmitting,
-                onPress: { model.beginTransmit(settings) },
-                onRelease: { model.endTransmit() }
-            )
+        let dest = TxDestination(settings)
+        TalkBar(
+            title: dest.title,
+            tag: dest.tag,
+            armed: dest.armed,
+            transmitting: model.transmitting,
+            toggleMode: settings.pttToggle,
+            onPress: { model.beginTransmit(settings) },
+            onRelease: { model.endTransmit() },
+            onExpand: { showTalkSheet = true }
+        )
+        .sheet(isPresented: $showTalkSheet) {
+            TalkSheet()
+                .environmentObject(model)
+                .environmentObject(settings)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
+
+    // MARK: Private
+
+    @State private var showTalkSheet = false
 }
 
 // MARK: - TalkBar
@@ -383,8 +386,10 @@ struct TalkBar: View {
     let tag: String? // "TG 3100" or "NODE 55553"
     let armed: Bool
     let transmitting: Bool
+    let toggleMode: Bool
     let onPress: () -> Void
     let onRelease: () -> Void
+    let onExpand: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -402,30 +407,28 @@ struct TalkBar: View {
                     .foregroundStyle(CW.dim)
             }
             Spacer()
-            Text(transmitting ? "On air" : "Hold to talk")
-                .font(CW.sans(13, .medium))
-                .foregroundStyle(transmitting ? CW.white : (armed ? CW.bg : CW.text))
-                .padding(.horizontal, 18)
-                .padding(.vertical, 11)
-                .background(transmitting ? CW.red : (armed ? CW.blue : CW.raised))
-                .overlay(Capsule().stroke(armed || transmitting ? .clear : CW.border, lineWidth: 1))
-                .clipShape(Capsule())
-                .opacity(armed || transmitting ? 1 : 0.45)
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            if armed, !transmitting {
-                                onPress()
-                            }
-                        }
-                        .onEnded { _ in onRelease() }
-                )
+            Image(systemName: "chevron.up")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(CW.dim)
+            pttCapsule
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 13)
         .background(CW.raised)
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(CW.border, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        // Tap or swipe up anywhere outside the capsule expands into the
+        // talk sheet; the capsule's own gesture wins on the capsule
+        .onTapGesture { onExpand() }
+        .gesture(
+            DragGesture(minimumDistance: 15)
+                .onEnded { value in
+                    if value.translation.height < -20 {
+                        onExpand()
+                    }
+                }
+        )
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
     }
@@ -440,6 +443,37 @@ struct TalkBar: View {
             return "TRANSMITTING · \(tag)"
         }
         return armed ? "TX TARGET · \(tag)" : "TX DISARMED · \(tag)"
+    }
+
+    @ViewBuilder private var pttCapsule: some View {
+        let capsule = Text(PTTLabel.text(transmitting: transmitting, toggleMode: toggleMode))
+            .font(CW.sans(13, .medium))
+            .foregroundStyle(transmitting ? CW.white : (armed ? CW.bg : CW.text))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 11)
+            .background(transmitting ? CW.red : (armed ? CW.blue : CW.raised))
+            .overlay(Capsule().stroke(armed || transmitting ? .clear : CW.border, lineWidth: 1))
+            .clipShape(Capsule())
+            .opacity(armed || transmitting ? 1 : 0.45)
+        if toggleMode {
+            capsule.onTapGesture {
+                if transmitting {
+                    onRelease()
+                } else if armed {
+                    onPress()
+                }
+            }
+        } else {
+            capsule.gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        if armed, !transmitting {
+                            onPress()
+                        }
+                    }
+                    .onEnded { _ in onRelease() }
+            )
+        }
     }
 }
 
