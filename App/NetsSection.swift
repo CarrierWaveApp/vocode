@@ -71,7 +71,7 @@ struct NetsSection: View {
                         .font(CW.mono(11))
                         .foregroundStyle(CW.blue)
                 }
-                if settings.netMode != "dstar", settings.netMode != "allstar" {
+                if settings.activeKind.isDMR {
                     Button("Join") {
                         NetJoin.join(talkgroup: net.talkgroup, name: net.name,
                                      settings: settings, model: model)

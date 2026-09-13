@@ -7,21 +7,11 @@ enum ListenState: String, Codable {
     case live
     case muted
     case off
-
-    // MARK: Internal
-
-    var next: ListenState {
-        switch self {
-        case .live: .muted
-        case .muted: .off
-        case .off: .live
-        }
-    }
 }
 
 // MARK: - Talkgroup
 
-struct Talkgroup: Codable, Identifiable, Equatable {
+struct Talkgroup: Codable, Identifiable, Equatable, Hashable {
     // MARK: Lifecycle
 
     init(id: UUID = UUID(), tg: UInt32, name: String = "", listen: ListenState = .live) {
@@ -63,6 +53,9 @@ final class Settings: ObservableObject {
                           listen: (singleTG && i > 0) ? .off : .live)
             }
         }
+        // After the talkgroup migration: the DMR destination it builds
+        // captures the migrated list
+        migrateDestinationsIfNeeded()
     }
 
     // MARK: Internal
@@ -113,6 +106,10 @@ final class Settings: ObservableObject {
     @AppStorage("buddyLastSynced") var buddyLastSynced = ""
     @AppStorage("buddiesJSON") var buddiesJSON = ""
     @AppStorage("netsJSON") var netsJSON = ""
+    // Saved destinations (see Destination.swift); the keys above stay the
+    // working state the connect path reads
+    @AppStorage("destinationsJSON") var destinationsJSON = ""
+    @AppStorage("activeDestinationID") var activeDestinationID = ""
 
     var talkgroupList: [Talkgroup] {
         get {
@@ -336,13 +333,6 @@ final class Settings: ObservableObject {
             talkgroupList = list
         }
         txTargetTG = Int(list[keep].tg)
-    }
-
-    func cycleListen(_ tg: UInt32) {
-        guard let current = listenState(tg) else {
-            return
-        }
-        setListen(tg, current.next)
     }
 
     // MARK: Private

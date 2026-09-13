@@ -1,22 +1,27 @@
 # DMR Monitor (iOS)
 
-Receive-only DMR talkgroup monitor for iPhone. Decodes AMBE+2 voice with
-mbelib, plays it, and keeps a last-heard list. Two network modes:
+Multi-network voice monitor for iPhone. Decodes AMBE+2 voice with
+mbelib, plays it, and keeps a last-heard list. Connections are saved
+**destinations** — memory channels switched from the title bar on the
+main screen — of four kinds:
 
-- **Open Terminal (default)** — BrandMeister's sanctioned protocol for
-  RF-less terminals (Rewind framing, UDP port 54006). Same master
-  hostnames, plain 7-digit DMR ID (no suffix), same SelfCare
-  hotspot-security password. Talkgroups are subscribed directly; the
-  options field accepts `91;3100` or the MMDVMHost `TS2_1=91` form.
-- **Homebrew (hotspot)** — the MMDVM homebrew protocol, port 62031.
+- **DMR · BrandMeister** — Open Terminal, BrandMeister's sanctioned
+  protocol for RF-less terminals (Rewind framing, UDP port 54006).
+  Plain 7-digit DMR ID (no suffix), SelfCare hotspot-security password,
+  per-destination talkgroup list. The only DMR kind that can transmit.
+- **DMR · Hotspot** — the MMDVM homebrew protocol, port 62031.
   BrandMeister NAKs app-only clients here (that's why Open Terminal
   exists); still useful for networks that allow it, e.g. TGIF.
+- **D-STAR** — XLX/XRF reflectors over DExtra (port 30001), one module
+  per destination. Receive only.
+- **AllStar** — link to a node as your own registered node over IAX2.
 
-Transmit works in Open Terminal mode: hold the talk button to key up the
-selected TX talkgroup. Voice is encoded with OP25's software AMBE+2
-encoder (GPL v3, vendored under `Packages/AMBE/Sources/CMBELib/encoder/`
-with a custom `dmr_pack.cc` that emits mbelib's cell layout — the package
-test proves encode→decode symmetry). No transmit on homebrew mode.
+Transmit works on BrandMeister and AllStar destinations: hold the talk
+button to key up the selected TX talkgroup or linked node. Voice is
+encoded with OP25's software AMBE+2 encoder (GPL v3, vendored under
+`Packages/AMBE/Sources/CMBELib/encoder/` with a custom `dmr_pack.cc`
+that emits mbelib's cell layout — the package test proves encode→decode
+symmetry).
 
 Distributed via TestFlight; buddy watch pushes route per-build to the APNs sandbox (dev installs) or production (TestFlight/App Store).
 

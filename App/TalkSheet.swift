@@ -3,20 +3,34 @@ import SwiftUI
 // MARK: - TxDestination
 
 /// TX destination for the talk UI: the linked node on AllStar, the
-/// selected talkgroup everywhere else
+/// selected talkgroup on BrandMeister. D-STAR and hotspot links are
+/// receive-only — the talk UI says so instead of dangling a dead PTT.
 struct TxDestination {
     // MARK: Lifecycle
 
     init(_ settings: Settings) {
-        if settings.netMode == "allstar" {
+        switch settings.activeKind {
+        case .allstar:
             let node = settings.aslTarget.trimmingCharacters(in: .whitespaces)
             title = "Node \(node)"
-            tag = "NODE \(node)"
+            tag = "Node \(node)"
             armed = true
-        } else {
+            rxOnly = false
+        case .brandmeister:
             title = settings.txTarget.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name }
             tag = settings.txTarget.map { "TG \($0.tg)" }
             armed = settings.txTarget?.listen == .live
+            rxOnly = false
+        case .hotspot:
+            title = settings.txTarget.map { $0.name.isEmpty ? "TG \($0.tg)" : $0.name }
+            tag = settings.txTarget.map { "TG \($0.tg)" }
+            armed = false
+            rxOnly = true
+        case .dstar:
+            title = settings.connectedSummary
+            tag = nil
+            armed = false
+            rxOnly = true
         }
     }
 
@@ -25,6 +39,21 @@ struct TxDestination {
     let title: String?
     let tag: String?
     let armed: Bool
+    let rxOnly: Bool
+
+    /// Status line under the title, shared by the bar and the sheet
+    func status(transmitting: Bool) -> String {
+        if rxOnly {
+            return "Receive only"
+        }
+        guard let tag else {
+            return "Choose a talkgroup to talk"
+        }
+        if transmitting {
+            return "Transmitting · \(tag)"
+        }
+        return armed ? "Ready · \(tag)" : "Target muted · \(tag)"
+    }
 }
 
 // MARK: - PTTLabel
@@ -51,12 +80,11 @@ struct TalkSheet: View {
     var body: some View {
         let dest = TxDestination(settings)
         VStack(spacing: 8) {
-            Text(dest.title ?? "No TX target")
+            Text(dest.title ?? "No talk target")
                 .font(CW.sans(18, .semibold))
                 .foregroundStyle(dest.title != nil ? CW.white : CW.dim)
-            Text(status(dest))
-                .font(CW.mono(11))
-                .tracking(0.8)
+            Text(dest.status(transmitting: model.transmitting))
+                .font(CW.sans(12))
                 .foregroundStyle(model.transmitting ? CW.red : CW.dim)
             Spacer()
             pttButton(dest)
@@ -74,7 +102,7 @@ struct TalkSheet: View {
 
     private var timeoutLabel: String {
         let secs = settings.txTimeoutSecs
-        return secs < 60 ? "\(secs) SEC" : "\(secs / 60) MIN"
+        return secs < 60 ? "\(secs) sec" : "\(secs / 60) min"
     }
 
     @ViewBuilder private var footerLine: some View {
@@ -83,14 +111,12 @@ struct TalkSheet: View {
                 .font(CW.mono(15, medium: true))
                 .foregroundStyle(CW.white)
         } else if settings.txTimeoutSecs > 0 {
-            Text("TX TIMEOUT \(timeoutLabel)")
-                .font(CW.mono(11))
-                .tracking(0.8)
+            Text("Timeout \(timeoutLabel)")
+                .font(CW.sans(12))
                 .foregroundStyle(CW.dim)
         } else {
-            Text("TX TIMEOUT OFF")
-                .font(CW.mono(11))
-                .tracking(0.8)
+            Text("Timeout off")
+                .font(CW.sans(12))
                 .foregroundStyle(CW.dim)
         }
     }
@@ -132,15 +158,5 @@ struct TalkSheet: View {
                     .onEnded { _ in model.endTransmit() }
             )
         }
-    }
-
-    private func status(_ dest: TxDestination) -> String {
-        guard let tag = dest.tag else {
-            return "SELECT IN TALKGROUPS"
-        }
-        if model.transmitting {
-            return "TRANSMITTING · \(tag)"
-        }
-        return dest.armed ? "TX TARGET · \(tag)" : "TX DISARMED · \(tag)"
     }
 }

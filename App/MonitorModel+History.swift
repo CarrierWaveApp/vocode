@@ -8,7 +8,7 @@ extension MonitorModel {
         let talkgroups = Set(settings.activeTalkgroups)
         // BM history only makes sense against BrandMeister
         guard !talkgroups.isEmpty,
-              settings.netMode == "openterminal"
+              settings.activeKind == .brandmeister
               || settings.host.contains("brandmeister"),
               Date().timeIntervalSince(lastHistorySeed) > 60
         else {

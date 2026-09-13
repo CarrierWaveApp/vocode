@@ -27,25 +27,27 @@ struct SetupGuideView: View {
                 SectionLabel("BrandMeister password")
             }
             Section {
-                Step(1, "Protocol: Open Terminal. This is BrandMeister's sanctioned mode for apps "
-                    + "without a radio, and the only mode that can transmit.")
-                Step(2, "Master: automatic by default — Connect pings every BrandMeister master "
-                    + "and uses the fastest. Tap the Master row to see latencies or pin one yourself.")
-                Step(3, "Enter your 7-digit DMR ID (no suffix) and your hotspot security password.")
-                Step(4, "Add talkgroups below, then tap Connect on the main screen. "
-                    + "Tap a talkgroup's status to cycle live, muted, off.")
+                Step(1, "Enter your callsign, 7-digit DMR ID (no suffix), and your hotspot "
+                    + "security password in Settings.")
+                Step(2, "Tap the title on the main screen to open destinations. The built-in "
+                    + "BrandMeister destination connects to the nearest master automatically "
+                    + "via Open Terminal — BrandMeister's sanctioned mode for apps without a "
+                    + "radio, and the only DMR mode that can transmit.")
+                Step(3, "Edit the destination to add talkgroups, then tap it to connect. "
+                    + "Tap a talkgroup's speaker for live, muted, or off.")
             } header: {
                 SectionLabel("Configure the app")
             }
             Section {
-                Step(1, "Homebrew is the MMDVM hotspot protocol on port 62031. BrandMeister rejects "
-                    + "app-only clients here — that's what Open Terminal is for — but other networks allow it.")
+                Step(1, "A hotspot destination speaks the MMDVM Homebrew protocol on port 62031. "
+                    + "BrandMeister rejects app-only clients here — that's what the BrandMeister "
+                    + "destination is for — but other networks allow it.")
                 Step(2, "TGIF: make an account at tgif.network and use the password from its self-care page.")
-                Step(3, "Homebrew needs your callsign plus a two-digit hotspot suffix. Any two digits "
-                    + "work as long as no other hotspot on your DMR ID uses them; 01 is fine.")
+                Step(3, "Homebrew needs your callsign plus a two-digit hotspot suffix in Settings. "
+                    + "Any two digits work as long as no other hotspot on your DMR ID uses them; 01 is fine.")
                 GuideLink("tgif.network", url: "https://tgif.network")
             } header: {
-                SectionLabel("Homebrew mode (TGIF and others)")
+                SectionLabel("Hotspot destinations (TGIF and others)")
             }
             Section {
                 Step(1, "Create an account at allstarlink.org with a copy of your license, "
@@ -53,14 +55,14 @@ struct SetupGuideView: View {
                 Step(2, "Add a server (Portal → Servers), then request a node number under it "
                     + "(Portal → Node Requests). The app acts as its own node, so give it a node "
                     + "of its own — don't reuse a hardware node's number.")
-                Step(3, "The node number and its password from the node settings page go in the "
-                    + "fields here, along with your callsign.")
-                Step(4, "Pick a node to link to and tap Connect. The first connect after setup "
-                    + "can be refused while AllStarLink's DNS catches up — wait a minute or two "
-                    + "and try again.")
+                Step(3, "The node number and its password from the node settings page go in "
+                    + "Settings, along with your callsign.")
+                Step(4, "Add an AllStar destination, pick a node to link to, and tap it to "
+                    + "connect. The first connect after setup can be refused while AllStarLink's "
+                    + "DNS catches up — wait a minute or two and try again.")
                 GuideLink("allstarlink.org", url: "https://www.allstarlink.org")
             } header: {
-                SectionLabel("AllStar mode")
+                SectionLabel("AllStar destinations")
             }
         }
         .cwList()

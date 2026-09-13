@@ -31,12 +31,10 @@ struct TxMonitorSection: View {
         } header: {
             SectionLabel("Transmit")
         } footer: {
-            Text("Toggle keys up on one tap and stops on the next. The timeout "
+            FooterNote("Toggle keys up on one tap and stops on the next. The timeout "
                 + "ends any transmission automatically. Playback hears your last "
                 + "TX after the AMBE encode/decode round trip — what other "
                 + "stations heard.")
-                .font(CW.mono(11))
-                .foregroundStyle(CW.dim)
         }
     }
 }

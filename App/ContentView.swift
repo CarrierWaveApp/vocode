@@ -13,7 +13,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !model.isConnected || connExpanded || model.audioError != nil {
+                if !model.isConnected || model.audioError != nil {
                     Section {
                         statusRow
                         logLink
@@ -22,34 +22,41 @@ struct ContentView: View {
                         }
                     }
                 }
-                Section {
-                    tgHeader
-                    if !tgCollapsed {
-                        ForEach(settings.talkgroupList.filter { $0.tg > 0 }) { tg in
-                            TGRow(
-                                tg: tg,
-                                isTX: settings.txTargetTG == Int(tg.tg),
-                                cycle: {
-                                    settings.cycleListen(tg.tg)
-                                    model.applyListenStates(settings)
-                                },
-                                selectTX: {
-                                    guard tg.listen == .live else {
-                                        return
+                if settings.activeKind.isDMR {
+                    Section {
+                        tgHeader
+                        if !tgCollapsed {
+                            ForEach(settings.talkgroupList.filter { $0.tg > 0 }) { tg in
+                                TGRow(
+                                    tg: tg,
+                                    isTX: settings.txTargetTG == Int(tg.tg),
+                                    setState: { state in
+                                        settings.setListen(tg.tg, state)
+                                        model.applyListenStates(settings)
+                                    },
+                                    selectTX: {
+                                        guard tg.listen == .live else {
+                                            return
+                                        }
+                                        settings.txTargetTG =
+                                            settings.txTargetTG == Int(tg.tg) ? 0 : Int(tg.tg)
                                     }
-                                    settings.txTargetTG =
-                                        settings.txTargetTG == Int(tg.tg) ? 0 : Int(tg.tg)
+                                )
+                            }
+                            Button {
+                                settings.snapshotActiveDestination()
+                                if let active = settings.activeDestination {
+                                    editingDestination = active
                                 }
-                            )
+                            } label: {
+                                Label("Edit talkgroups", systemImage: "pencil")
+                                    .font(CW.sans(14))
+                                    .foregroundStyle(CW.dim)
+                            }
+                            .disabled(settings.activeDestination == nil)
                         }
-                    }
-                } header: {
-                    SectionLabel("Talkgroups")
-                } footer: {
-                    if !tgCollapsed, !settings.talkgroupList.isEmpty {
-                        Text("tap speaker to cycle live → muted → off · tap TX to set the talk target")
-                            .font(CW.mono(11))
-                            .foregroundStyle(CW.dim)
+                    } header: {
+                        SectionLabel("Talkgroups")
                     }
                 }
                 NetsSection()
@@ -138,6 +145,17 @@ struct ContentView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .sheet(isPresented: $showSwitcher) {
+                DestinationSwitcherView()
+                    .environmentObject(model)
+                    .environmentObject(settings)
+            }
+            .sheet(item: $editingDestination) { dest in
+                NavigationStack {
+                    DestinationEditView(draft: dest)
+                }
+                .preferredColorScheme(.dark)
+            }
         }
         .environmentObject(buddyClient)
         .task {
@@ -151,9 +169,17 @@ struct ContentView: View {
 
     @State private var showSettings = false
     @State private var showMap = false
+    @State private var showSwitcher = false
+    @State private var editingDestination: Destination?
     @StateObject private var buddyClient = BuddyClient()
-    @State private var connExpanded = false
     @AppStorage("tgCollapsed") private var tgCollapsed = false
+
+    private var headerTitle: String {
+        if model.isConnected {
+            return settings.connectedSummary
+        }
+        return settings.activeDestination?.displayName ?? "Choose destination"
+    }
 
     private var tgHeader: some View {
         let list = settings.talkgroupList.filter { $0.tg > 0 }
@@ -183,36 +209,42 @@ struct ContentView: View {
                         .foregroundStyle(CW.white)
                 }
                 Spacer()
-                HStack(spacing: 8) {
-                    countDot(live, CW.green)
-                    countDot(mutedCount, CW.amber)
-                    countDot(off, CW.xdim)
+                HStack(spacing: 10) {
+                    countBadge(live, icon: "speaker.wave.2.fill", color: CW.green, label: "live")
+                    countBadge(mutedCount, icon: "speaker.slash.fill", color: CW.amber, label: "muted")
+                    countBadge(off, icon: "power", color: CW.xdim, label: "off")
                 }
             }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    /// Lives in the nav bar as the principal item: dot, summary, chevron.
-    /// Tapping toggles the connection section in the list.
+    /// Lives in the nav bar as the principal item: dot, destination,
+    /// picker chevrons. Tapping opens the destination switcher.
     private var headerStatus: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) { connExpanded.toggle() }
+            showSwitcher = true
         } label: {
             HStack(spacing: 7) {
                 Circle()
                     .fill(model.isConnected ? CW.green : CW.xdim)
                     .frame(width: 8, height: 8)
-                Text(model.isConnected ? settings.connectedSummary : model.link.label)
-                    .font(CW.mono(13, medium: true))
+                Text(headerTitle)
+                    .font(CW.sans(14, .medium))
                     .foregroundStyle(model.isConnected ? CW.white : CW.text)
                     .lineLimit(1)
-                Image(systemName: connExpanded ? "chevron.down" : "chevron.right")
+                Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(CW.dim)
             }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Destination: \(headerTitle), \(model.isConnected ? "connected" : "disconnected")")
+        .accessibilityHint("Opens the destination switcher")
     }
 
     private var logLink: some View {
@@ -254,14 +286,18 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func countDot(_ n: Int, _ color: Color) -> some View {
+    private func countBadge(_ n: Int, icon: String, color: Color, label: String) -> some View {
         if n > 0 {
             HStack(spacing: 3) {
-                Circle().fill(color).frame(width: 6, height: 6)
+                Image(systemName: icon)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(color)
                 Text("\(n)")
                     .font(CW.mono(10))
                     .foregroundStyle(CW.dim)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(n) \(label)")
         }
     }
 }
@@ -273,31 +309,46 @@ struct TGRow: View {
 
     let tg: Talkgroup
     let isTX: Bool
-    let cycle: () -> Void
+    let setState: (ListenState) -> Void
     let selectTX: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: cycle) {
+            Menu {
+                Picker("Listen state", selection: Binding(
+                    get: { tg.listen },
+                    set: { setState($0) }
+                )) {
+                    Label("Live", systemImage: "speaker.wave.2.fill")
+                        .tag(ListenState.live)
+                    Label("Muted", systemImage: "speaker.slash.fill")
+                        .tag(ListenState.muted)
+                    Label("Off", systemImage: "power")
+                        .tag(ListenState.off)
+                }
+            } label: {
                 Image(systemName: stateIcon)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(stateColor)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 38, height: 38)
                     .background(CW.raised)
                     .overlay(
                         RoundedRectangle(cornerRadius: 9)
                             .stroke(tg.listen == .off ? CW.border : stateColor.opacity(0.5), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Listen state: \(tg.listen.rawValue)")
             VStack(alignment: .leading, spacing: 2) {
                 Text(tg.name.isEmpty ? "TG \(tg.tg)" : tg.name)
                     .font(CW.sans(15, .medium))
                     .foregroundStyle(tg.listen == .off ? CW.dim : CW.white)
                 // String(tg) keeps Text's localized interpolation from
                 // rendering 3100 as "3,100"
-                Text("TG \(String(tg.tg)) · \(tg.listen.rawValue.uppercased())")
+                Text("TG \(String(tg.tg)) · \(tg.listen.rawValue)")
                     .font(CW.mono(11))
                     .foregroundStyle(CW.dim)
             }
@@ -317,8 +368,11 @@ struct TGRow: View {
                         .foregroundStyle(CW.dim)
                 }
                 .opacity(tg.listen == .live || isTX ? 1 : 0.35)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isTX ? "Talk target" : "Set as talk target")
         }
         .padding(.vertical, 2)
     }
@@ -352,11 +406,8 @@ struct TalkBarHost: View {
     @EnvironmentObject var settings: Settings
 
     var body: some View {
-        let dest = TxDestination(settings)
         TalkBar(
-            title: dest.title,
-            tag: dest.tag,
-            armed: dest.armed,
+            dest: TxDestination(settings),
             transmitting: model.transmitting,
             toggleMode: settings.pttToggle,
             onPress: { model.beginTransmit(settings) },
@@ -382,9 +433,7 @@ struct TalkBarHost: View {
 struct TalkBar: View {
     // MARK: Internal
 
-    let title: String? // TX destination display name
-    let tag: String? // "TG 3100" or "NODE 55553"
-    let armed: Bool
+    let dest: TxDestination
     let transmitting: Bool
     let toggleMode: Bool
     let onPress: () -> Void
@@ -393,24 +442,25 @@ struct TalkBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "mic.fill")
+            Image(systemName: dest.rxOnly ? "speaker.wave.2.fill" : "mic.fill")
                 .font(.system(size: 15))
-                .foregroundStyle(transmitting ? CW.red : (armed ? CW.blue : CW.xdim))
+                .foregroundStyle(transmitting ? CW.red : (dest.armed ? CW.blue : CW.xdim))
                 .symbolEffect(.pulse, isActive: transmitting)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title ?? "No TX target")
+                Text(dest.title ?? "No talk target")
                     .font(CW.sans(14, .semibold))
-                    .foregroundStyle(title != nil ? CW.white : CW.dim)
-                Text(subtitle)
-                    .font(CW.mono(10))
-                    .tracking(0.8)
+                    .foregroundStyle(dest.title != nil ? CW.white : CW.dim)
+                Text(dest.status(transmitting: transmitting))
+                    .font(CW.sans(11))
                     .foregroundStyle(CW.dim)
             }
             Spacer()
             Image(systemName: "chevron.up")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(CW.dim)
-            pttCapsule
+            if !dest.rxOnly {
+                pttCapsule
+            }
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 13)
@@ -435,17 +485,8 @@ struct TalkBar: View {
 
     // MARK: Private
 
-    private var subtitle: String {
-        guard let tag else {
-            return "SELECT IN TALKGROUPS"
-        }
-        if transmitting {
-            return "TRANSMITTING · \(tag)"
-        }
-        return armed ? "TX TARGET · \(tag)" : "TX DISARMED · \(tag)"
-    }
-
     @ViewBuilder private var pttCapsule: some View {
+        let armed = dest.armed
         let capsule = Text(PTTLabel.text(transmitting: transmitting, toggleMode: toggleMode))
             .font(CW.sans(13, .medium))
             .foregroundStyle(transmitting ? CW.white : (armed ? CW.bg : CW.text))
@@ -630,53 +671,49 @@ private struct QRZSection: View {
         } header: {
             SectionLabel("QRZ")
         } footer: {
-            Text("Used to place stations on the map. A QRZ subscription is required for coordinates.")
-                .font(CW.mono(11))
-                .foregroundStyle(CW.dim)
+            FooterNote("Used to place stations on the map. A QRZ subscription is required for coordinates.")
         }
     }
 }
 
 // MARK: - StationSection
 
-/// Per-mode station credentials, split out to keep SettingsView readable
+/// Station identity, split out to keep SettingsView readable. Static —
+/// the same fields regardless of the active destination.
 private struct StationSection: View {
     @EnvironmentObject var settings: Settings
 
     var body: some View {
         Section {
-            if settings.netMode == "allstar" {
-                TextField("My node number", text: settings.$aslMyNode)
-                    .keyboardType(.numberPad)
-                    .font(CW.mono(14))
-                SecureField("Node password", text: settings.$aslPassword)
-                TextField("Callsign", text: settings.$callsign)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .font(CW.mono(14))
-            } else if settings.netMode == "dstar" {
-                TextField("Callsign", text: settings.$callsign)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .font(CW.mono(14))
-            } else {
-                TextField("DMR ID", text: settings.$dmrID)
-                    .keyboardType(.numberPad)
-                    .font(CW.mono(14))
-                SecureField("Hotspot password", text: settings.$password)
-            }
-            if settings.netMode == "homebrew" {
-                TextField("Callsign", text: settings.$callsign)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .font(CW.mono(14))
-                TextField("Hotspot suffix", text: settings.$suffix)
-                    .keyboardType(.numberPad)
-                    .font(CW.mono(14))
-                TextField("Location", text: settings.$location)
-            }
+            TextField("Callsign", text: settings.$callsign)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .font(CW.mono(14))
+            TextField("DMR ID", text: settings.$dmrID)
+                .keyboardType(.numberPad)
+                .font(CW.mono(14))
+            SecureField("Hotspot password", text: settings.$password)
+            TextField("Hotspot suffix", text: settings.$suffix)
+                .keyboardType(.numberPad)
+                .font(CW.mono(14))
+            TextField("Location", text: settings.$location)
         } header: {
             SectionLabel("Station")
+        } footer: {
+            FooterNote("Callsign and DMR ID identify you on every network. "
+                + "The password comes from BrandMeister SelfCare; suffix and "
+                + "location only matter for hotspot destinations.")
+        }
+        Section {
+            TextField("My node number", text: settings.$aslMyNode)
+                .keyboardType(.numberPad)
+                .font(CW.mono(14))
+            SecureField("Node password", text: settings.$aslPassword)
+        } header: {
+            SectionLabel("AllStar")
+        } footer: {
+            FooterNote("Your registered AllStar node credentials, used when "
+                + "connecting to AllStar destinations.")
         }
     }
 }
@@ -695,94 +732,7 @@ struct SettingsView: View {
                 Section {
                     NavigationLink("Setup guide") { SetupGuideView() }
                 } footer: {
-                    Text("How to get a DMR ID and password, and what goes where.")
-                        .font(CW.mono(11))
-                        .foregroundStyle(CW.dim)
-                }
-                Section {
-                    Picker("Protocol", selection: settings.$netMode) {
-                        Text("Open Terminal (BM)").tag("openterminal")
-                        Text("Homebrew (hotspot)").tag("homebrew")
-                        Text("D-STAR (XLX)").tag("dstar")
-                        Text("AllStar").tag("allstar")
-                    }
-                    if settings.netMode == "homebrew" {
-                        TextField("Host", text: settings.$host)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .font(CW.mono(14))
-                        TextField("Port", value: settings.$port, format: .number)
-                            .keyboardType(.numberPad)
-                            .font(CW.mono(14))
-                    } else if settings.netMode == "allstar" {
-                        NavigationLink {
-                            NodePickerView()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(allstarLabel)
-                                    .font(CW.mono(14))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Spacer()
-                            }
-                        }
-                    } else if settings.netMode == "dstar" {
-                        NavigationLink {
-                            ReflectorPickerView()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(reflectorLabel)
-                                    .font(CW.mono(14))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Spacer()
-                                if let address = selectedReflectorIP {
-                                    LatencyBadge(state: pinger.results[address])
-                                }
-                            }
-                        }
-                        TextField("Module", text: settings.$dstarModule)
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                            .font(CW.mono(14))
-                    } else {
-                        NavigationLink {
-                            MasterPickerView()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(serverLabel)
-                                    .font(CW.mono(14))
-                                    .lineLimit(1)
-                                if settings.autoMaster {
-                                    Text("auto")
-                                        .font(CW.mono(11))
-                                        .foregroundStyle(CW.dim)
-                                }
-                                Spacer()
-                                LatencyBadge(state: serverProbe)
-                            }
-                        }
-                    }
-                } header: {
-                    SectionLabel("Master")
-                } footer: {
-                    if settings.netMode == "allstar" {
-                        Text("The AllStar node to link to. Addresses come from "
-                            + "AllStarLink's DNS at connect time.")
-                            .font(CW.mono(11))
-                            .foregroundStyle(CW.dim)
-                    } else if settings.netMode == "dstar" {
-                        Text("An XLX or XRF reflector, DExtra port 30001. "
-                            + "Module is the letter to link.")
-                            .font(CW.mono(11))
-                            .foregroundStyle(CW.dim)
-                    } else if settings.netMode != "homebrew" {
-                        Text(settings.autoMaster
-                            ? "Connect pings every BrandMeister master and uses the fastest."
-                            : "Pings every BrandMeister master and lets you pick the closest.")
-                            .font(CW.mono(11))
-                            .foregroundStyle(CW.dim)
-                    }
+                    FooterNote("How to get a DMR ID and password, and what goes where.")
                 }
                 StationSection()
                 Section {
@@ -795,33 +745,6 @@ struct SettingsView: View {
                 BuddySettingsSection()
                 TxMonitorSection()
                 Section {
-                    ForEach(tgList) { $tg in
-                        HStack(spacing: 12) {
-                            TextField("TG", text: Binding(
-                                get: { tg.tg == 0 ? "" : String(tg.tg) },
-                                set: { tg.tg = UInt32($0.filter(\.isNumber)) ?? 0 }
-                            ))
-                            .keyboardType(.numberPad)
-                            .font(CW.mono(14))
-                            .frame(width: 76)
-                            TextField("Name", text: $tg.name)
-                        }
-                    }
-                    .onDelete { tgList.wrappedValue.remove(atOffsets: $0) }
-                    Button {
-                        tgList.wrappedValue.append(Talkgroup(tg: 0, name: ""))
-                    } label: {
-                        Label("Add talkgroup", systemImage: "plus")
-                            .font(CW.sans(15))
-                    }
-                } header: {
-                    SectionLabel("Talkgroups")
-                } footer: {
-                    Text("Applied on next connect. Swipe to delete.")
-                        .font(CW.mono(11))
-                        .foregroundStyle(CW.dim)
-                }
-                Section {
                     Toggle("Single talkgroup", isOn: settings.$singleTG)
                         .onChange(of: settings.singleTG) { _, on in
                             if on {
@@ -832,9 +755,9 @@ struct SettingsView: View {
                 } header: {
                     SectionLabel("Behavior")
                 } footer: {
-                    Text("Going live on a talkgroup switches the others off. Turn off to monitor several at once.")
-                        .font(CW.mono(11))
-                        .foregroundStyle(CW.dim)
+                    FooterNote("Going live on a talkgroup switches the others off. "
+                        + "Turn off to monitor several at once. Destinations and "
+                        + "their talkgroups live behind the title on the main screen.")
                 }
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
@@ -854,16 +777,6 @@ struct SettingsView: View {
                 }
             }
             .cwList()
-            .onAppear {
-                probeSelected()
-                if settings.netMode == "allstar" {
-                    ASLDirectory.shared.loadIfNeeded()
-                }
-            }
-            .onChange(of: settings.host) { _, _ in probeSelected() }
-            .onChange(of: settings.otpPort) { _, _ in probeSelected() }
-            .onChange(of: settings.dstarHost) { _, _ in probeSelected() }
-            .onChange(of: settings.netMode) { _, _ in probeSelected() }
             .navigationTitle("Settings")
             .toolbarBackground(CW.bg, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -879,81 +792,4 @@ struct SettingsView: View {
     // MARK: Private
 
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var scout = MasterScout()
-    @StateObject private var pinger = ICMPPinger()
-
-    /// The Master row shows the selection by directory name when the host is
-    /// a known BrandMeister master, or the raw host otherwise.
-    private var serverLabel: String {
-        guard let selected = BMDirectory.master(forHost: settings.host) else {
-            return settings.host
-        }
-        return "\(selected.id) \(selected.country)"
-    }
-
-    private var serverProbe: ProbeState? {
-        if let selected = BMDirectory.master(forHost: settings.host) {
-            return scout.results[selected.id]
-        }
-        return scout.results[MasterScout.customKey]
-    }
-
-    private var allstarLabel: String {
-        let target = settings.aslTarget.trimmingCharacters(in: .whitespaces)
-        guard !target.isEmpty else {
-            return "Choose a node"
-        }
-        if let node = ASLDirectory.shared.node(forNumber: target) {
-            return "\(target) · \(node.callsign)"
-        }
-        return "Node \(target)"
-    }
-
-    private var reflectorLabel: String {
-        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-        guard !host.isEmpty else {
-            return "Choose a reflector"
-        }
-        if let reflector = XLXDirectory.reflector(forHost: host) {
-            return "\(reflector.name) · \(reflector.country)"
-        }
-        return host
-    }
-
-    /// Directory reflectors carry a baked IP; a custom host only gets a
-    /// badge when it's already a literal IPv4 address (no DNS here)
-    private var selectedReflectorIP: String? {
-        let host = settings.dstarHost.trimmingCharacters(in: .whitespaces)
-        if let reflector = XLXDirectory.reflector(forHost: host) {
-            return reflector.ipAddress
-        }
-        var probe = in_addr()
-        return inet_pton(AF_INET, host, &probe) == 1 ? host : nil
-    }
-
-    private var tgList: Binding<[Talkgroup]> {
-        Binding(
-            get: { settings.talkgroupList },
-            set: { settings.talkgroupList = $0 }
-        )
-    }
-
-    private func probeSelected() {
-        if settings.netMode == "dstar" {
-            if let address = selectedReflectorIP {
-                pinger.ping([address])
-            }
-            return
-        }
-        guard settings.netMode == "openterminal" else {
-            return
-        }
-        let dmrID = UInt32(settings.dmrID.trimmingCharacters(in: .whitespaces)) ?? 0
-        if let selected = BMDirectory.master(forHost: settings.host) {
-            scout.probeOne(selected, dmrID: dmrID)
-        } else if !settings.host.isEmpty, let port = UInt16(exactly: settings.otpPort) {
-            scout.probeCustom(host: settings.host.trimmingCharacters(in: .whitespaces),
-                              port: port, dmrID: dmrID)
-        }
-    }
 }

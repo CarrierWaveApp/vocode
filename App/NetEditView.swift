@@ -39,9 +39,7 @@ struct NetEditView: View {
             } header: {
                 SectionLabel("Schedule")
             } footer: {
-                Text("Times are in the net's own time zone; they don't shift when you travel.")
-                    .font(CW.mono(11))
-                    .foregroundStyle(CW.dim)
+                FooterNote("Times are in the net's own time zone; they don't shift when you travel.")
             }
             Section {
                 leadToggle(10, "10 minutes before")

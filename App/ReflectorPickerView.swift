@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// Searchable picker over the bundled XLX reflector snapshot, grouped by
-/// country. Tapping a reflector sets the D-STAR host; a Custom section
+/// country. Tapping a reflector sets the bound host; a Custom section
 /// keeps free-text entry for anything not in the snapshot.
 struct ReflectorPickerView: View {
     // MARK: Internal
 
-    @EnvironmentObject var settings: Settings
+    @Binding var host: String
 
     var body: some View {
         Form {
@@ -25,13 +25,13 @@ struct ReflectorPickerView: View {
                     .autocorrectionDisabled()
                     .font(CW.mono(14))
                 Button {
-                    settings.dstarHost = trimmedCustomHost
+                    host = trimmedCustomHost
                     dismiss()
                 } label: {
                     HStack(spacing: 10) {
                         Text("Use this host")
                             .font(CW.sans(15))
-                        if settings.dstarHost == trimmedCustomHost, !trimmedCustomHost.isEmpty {
+                        if host == trimmedCustomHost, !trimmedCustomHost.isEmpty {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(CW.green)
@@ -49,8 +49,8 @@ struct ReflectorPickerView: View {
         .toolbarBackground(CW.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
-            if XLXDirectory.reflector(forHost: settings.dstarHost) == nil {
-                customHost = settings.dstarHost
+            if XLXDirectory.reflector(forHost: host) == nil {
+                customHost = host
             }
             pinger.ping(XLXDirectory.all.map(\.ipAddress))
         }
@@ -88,7 +88,7 @@ struct ReflectorPickerView: View {
 
     private func row(_ reflector: XLXReflector) -> some View {
         Button {
-            settings.dstarHost = reflector.host
+            host = reflector.host
             dismiss()
         } label: {
             HStack(spacing: 10) {
@@ -100,7 +100,7 @@ struct ReflectorPickerView: View {
                     .foregroundStyle(CW.dim)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if settings.dstarHost == reflector.host {
+                if host == reflector.host {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(CW.green)

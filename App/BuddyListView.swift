@@ -39,9 +39,7 @@ struct BuddySettingsSection: View {
         } header: {
             SectionLabel("Buddy watch")
         } footer: {
-            Text("Push notifications when a watched callsign keys up anywhere on BrandMeister.")
-                .font(CW.mono(11))
-                .foregroundStyle(CW.dim)
+            FooterNote("Push notifications when a watched callsign keys up anywhere on BrandMeister.")
         }
     }
 }
@@ -86,9 +84,7 @@ struct BuddyListView: View {
             } header: {
                 SectionLabel("Buddies")
             } footer: {
-                Text("Pushed when a buddy keys up anywhere on BrandMeister. Swipe to delete.")
-                    .font(CW.mono(11))
-                    .foregroundStyle(CW.dim)
+                FooterNote("Pushed when a buddy keys up anywhere on BrandMeister. Swipe to delete.")
             }
             Section {
                 statusRow

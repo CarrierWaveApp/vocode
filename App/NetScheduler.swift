@@ -107,9 +107,7 @@ enum NetScheduler {
 @MainActor
 enum NetJoin {
     static func join(talkgroup: UInt32, name: String, settings: Settings, model: MonitorModel) {
-        guard talkgroup > 0, settings.netMode != "dstar",
-              settings.netMode != "allstar"
-        else {
+        guard talkgroup > 0, settings.activeKind.isDMR else {
             return
         }
         if !settings.talkgroupList.contains(where: { $0.tg == talkgroup }) {
@@ -117,7 +115,7 @@ enum NetJoin {
             settings.talkgroupList.append(Talkgroup(tg: talkgroup, name: name, listen: .off))
         }
         settings.setListen(talkgroup, .live)
-        if model.isConnected, settings.netMode == "openterminal" {
+        if model.isConnected, settings.activeKind == .brandmeister {
             // Open Terminal diffs subscriptions live; homebrew ships its
             // talkgroups at login, so it needs a reconnect
             model.applyListenStates(settings)

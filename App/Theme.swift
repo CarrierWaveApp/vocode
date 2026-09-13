@@ -2,8 +2,11 @@ import SwiftUI
 
 // MARK: - CW
 
-/// Palette lifted from carrierwave.app
-enum CW { // swiftlint:disable:this type_name
+// Palette lifted from carrierwave.app
+// swiftlint:disable:next type_name
+enum CW {
+    // MARK: Internal
+
     enum SansWeight {
         case regular
         case medium
@@ -34,11 +37,27 @@ enum CW { // swiftlint:disable:this type_name
     static let red = Color(hex: 0xEF4444)
 
     static func sans(_ size: CGFloat, _ weight: SansWeight = .regular) -> Font {
-        .custom(weight.name, size: size)
+        .custom(weight.name, size: size, relativeTo: textStyle(size))
     }
 
     static func mono(_ size: CGFloat, medium: Bool = false) -> Font {
-        .custom(medium ? "IBMPlexMono-Medium" : "IBMPlexMono-Regular", size: size)
+        .custom(medium ? "IBMPlexMono-Medium" : "IBMPlexMono-Regular",
+                size: size, relativeTo: textStyle(size))
+    }
+
+    // MARK: Private
+
+    /// Nearest system text style, so the custom fonts scale with the
+    /// user's Dynamic Type setting instead of staying fixed
+    private static func textStyle(_ size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ..<12: .caption2
+        case ..<13: .caption
+        case ..<15: .footnote
+        case ..<16: .subheadline
+        case ..<18: .body
+        default: .title3
+        }
     }
 }
 
@@ -54,7 +73,7 @@ extension Color {
 
 // MARK: - SectionLabel
 
-/// "// SECTION" label like the site
+/// Section header: quiet uppercase sans, close to the system look
 struct SectionLabel: View {
     // MARK: Lifecycle
 
@@ -67,11 +86,32 @@ struct SectionLabel: View {
     let text: String
 
     var body: some View {
-        Text("// " + text.uppercased())
-            .font(CW.mono(11))
-            .tracking(1.2)
+        Text(text.uppercased())
+            .font(CW.sans(12, .medium))
+            .tracking(1.0)
             .foregroundStyle(CW.dim)
             .textCase(nil)
+    }
+}
+
+// MARK: - FooterNote
+
+/// Section footer text; mono is reserved for data, so footers are sans
+struct FooterNote: View {
+    // MARK: Lifecycle
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    // MARK: Internal
+
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(CW.sans(12))
+            .foregroundStyle(CW.dim)
     }
 }
 

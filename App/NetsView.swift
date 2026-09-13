@@ -35,7 +35,7 @@ struct NetsView: View {
                 SectionLabel("Nets")
             } footer: {
                 Text(footerText)
-                    .font(CW.mono(11))
+                    .font(CW.sans(12))
                     .foregroundStyle(trimmed > 0 ? CW.amber : CW.dim)
             }
             if permissionDenied {
@@ -77,9 +77,7 @@ struct NetsView: View {
             } header: {
                 SectionLabel("Sharing")
             } footer: {
-                Text("The directory imports nets disabled; switch on the ones you want reminders for.")
-                    .font(CW.mono(11))
-                    .foregroundStyle(CW.dim)
+                FooterNote("The directory imports nets disabled; switch on the ones you want reminders for.")
             }
         }
         .cwList()

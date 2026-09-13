@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// Searchable picker over the AllStarLink node directory. Tapping a node
-/// sets the AllStar target; a Custom section keeps free-text entry for
+/// sets the bound target; a Custom section keeps free-text entry for
 /// private nodes not in the directory.
 struct NodePickerView: View {
     // MARK: Internal
 
-    @EnvironmentObject var settings: Settings
+    @Binding var node: String
 
     var body: some View {
         Form {
@@ -17,22 +17,20 @@ struct NodePickerView: View {
             } header: {
                 SectionLabel(directory.refreshing ? "Nodes · updating directory" : "Nodes")
             } footer: {
-                Text("Showing up to \(Self.maxRows) matches. Search by node number, callsign, or location.")
-                    .font(CW.mono(11))
-                    .foregroundStyle(CW.dim)
+                FooterNote("Showing up to \(Self.maxRows) matches. Search by node number, callsign, or location.")
             }
             Section {
                 TextField("Node number", text: $customNode)
                     .keyboardType(.numberPad)
                     .font(CW.mono(14))
                 Button {
-                    settings.aslTarget = trimmedCustomNode
+                    node = trimmedCustomNode
                     dismiss()
                 } label: {
                     HStack(spacing: 10) {
                         Text("Use this node")
                             .font(CW.sans(15))
-                        if settings.aslTarget == trimmedCustomNode, !trimmedCustomNode.isEmpty {
+                        if node == trimmedCustomNode, !trimmedCustomNode.isEmpty {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(CW.green)
@@ -51,8 +49,8 @@ struct NodePickerView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
             directory.loadIfNeeded()
-            if directory.node(forNumber: settings.aslTarget) == nil {
-                customNode = settings.aslTarget
+            if directory.node(forNumber: node) == nil {
+                customNode = node
             }
         }
     }
@@ -88,27 +86,27 @@ struct NodePickerView: View {
         return matches
     }
 
-    private func row(_ node: ASLNode) -> some View {
+    private func row(_ entry: ASLNode) -> some View {
         Button {
-            settings.aslTarget = node.node
+            node = entry.node
             dismiss()
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                Text(node.node)
+                Text(entry.node)
                     .font(CW.mono(14, medium: true))
                     .foregroundStyle(CW.blue)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
-                        Text(node.callsign)
+                        Text(entry.callsign)
                             .font(CW.sans(14, .medium))
                             .foregroundStyle(CW.white)
-                        if settings.aslTarget == node.node {
+                        if node == entry.node {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(CW.green)
                         }
                     }
-                    Text([node.desc, node.location].filter { !$0.isEmpty }.joined(separator: " · "))
+                    Text([entry.desc, entry.location].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(CW.mono(11))
                         .foregroundStyle(CW.dim)
                         .lineLimit(1)
