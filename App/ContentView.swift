@@ -22,43 +22,6 @@ struct ContentView: View {
                         }
                     }
                 }
-                if settings.activeKind.isDMR {
-                    Section {
-                        tgHeader
-                        if !tgCollapsed {
-                            ForEach(settings.talkgroupList.filter { $0.tg > 0 }) { tg in
-                                TGRow(
-                                    tg: tg,
-                                    isTX: settings.txTargetTG == Int(tg.tg),
-                                    setState: { state in
-                                        settings.setListen(tg.tg, state)
-                                        model.applyListenStates(settings)
-                                    },
-                                    selectTX: {
-                                        guard tg.listen == .live else {
-                                            return
-                                        }
-                                        settings.txTargetTG =
-                                            settings.txTargetTG == Int(tg.tg) ? 0 : Int(tg.tg)
-                                    }
-                                )
-                            }
-                            Button {
-                                settings.snapshotActiveDestination()
-                                if let active = settings.activeDestination {
-                                    editingDestination = active
-                                }
-                            } label: {
-                                Label("Edit talkgroups", systemImage: "pencil")
-                                    .font(CW.sans(14))
-                                    .foregroundStyle(CW.dim)
-                            }
-                            .disabled(settings.activeDestination == nil)
-                        }
-                    } header: {
-                        SectionLabel("Talkgroups")
-                    }
-                }
                 NetsSection()
                 Section {
                     TalkTimelineView()
@@ -104,6 +67,16 @@ struct ContentView: View {
                 }
             }
             .cwList()
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if settings.activeKind.isDMR {
+                    TGStrip {
+                        settings.snapshotActiveDestination()
+                        if let active = settings.activeDestination {
+                            editingDestination = active
+                        }
+                    }
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 if model.isConnected {
                     TalkBarHost()
@@ -172,53 +145,12 @@ struct ContentView: View {
     @State private var showSwitcher = false
     @State private var editingDestination: Destination?
     @StateObject private var buddyClient = BuddyClient()
-    @AppStorage("tgCollapsed") private var tgCollapsed = false
 
     private var headerTitle: String {
         if model.isConnected {
             return settings.connectedSummary
         }
         return settings.activeDestination?.displayName ?? "Choose destination"
-    }
-
-    private var tgHeader: some View {
-        let list = settings.talkgroupList.filter { $0.tg > 0 }
-        let live = list.filter { $0.listen == .live }.count
-        let mutedCount = list.filter { $0.listen == .muted }.count
-        let off = list.filter { $0.listen == .off }.count
-
-        return Button {
-            withAnimation(.easeInOut(duration: 0.2)) { tgCollapsed.toggle() }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: tgCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(CW.dim)
-                if tgCollapsed, let lead = settings.txTarget ?? list.first(where: { $0.listen == .live }) {
-                    Text(lead.name.isEmpty ? "TG \(lead.tg)" : lead.name)
-                        .font(CW.sans(14, .medium))
-                        .foregroundStyle(CW.white)
-                    if list.count > 1 {
-                        Text("+\(list.count - 1)")
-                            .font(CW.sans(14))
-                            .foregroundStyle(CW.dim)
-                    }
-                } else {
-                    Text("\(list.count) talkgroup\(list.count == 1 ? "" : "s")")
-                        .font(CW.sans(14, .medium))
-                        .foregroundStyle(CW.white)
-                }
-                Spacer()
-                HStack(spacing: 10) {
-                    countBadge(live, icon: "speaker.wave.2.fill", color: CW.green, label: "live")
-                    countBadge(mutedCount, icon: "speaker.slash.fill", color: CW.amber, label: "muted")
-                    countBadge(off, icon: "power", color: CW.xdim, label: "off")
-                }
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     /// Lives in the nav bar as the principal item: dot, destination,
@@ -284,111 +216,128 @@ struct ContentView: View {
         }
         .padding(.vertical, 4)
     }
-
-    @ViewBuilder
-    private func countBadge(_ n: Int, icon: String, color: Color, label: String) -> some View {
-        if n > 0 {
-            HStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(color)
-                Text("\(n)")
-                    .font(CW.mono(10))
-                    .foregroundStyle(CW.dim)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(n) \(label)")
-        }
-    }
 }
 
-// MARK: - TGRow
+// MARK: - TGStrip
 
-struct TGRow: View {
+/// One-row channel strip pinned under the nav bar: each talkgroup is a
+/// chip whose menu sets listen state and talk target. Keeps live control
+/// in reach without a config section eating into the activity list.
+struct TGStrip: View {
     // MARK: Internal
 
-    let tg: Talkgroup
-    let isTX: Bool
-    let setState: (ListenState) -> Void
-    let selectTX: () -> Void
+    @EnvironmentObject var model: MonitorModel
+    @EnvironmentObject var settings: Settings
+
+    let onEdit: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Menu {
-                Picker("Listen state", selection: Binding(
-                    get: { tg.listen },
-                    set: { setState($0) }
-                )) {
-                    Label("Live", systemImage: "speaker.wave.2.fill")
-                        .tag(ListenState.live)
-                    Label("Muted", systemImage: "speaker.slash.fill")
-                        .tag(ListenState.muted)
-                    Label("Off", systemImage: "power")
-                        .tag(ListenState.off)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(settings.talkgroupList.filter { $0.tg > 0 }) { tg in
+                    chip(tg)
                 }
-            } label: {
-                Image(systemName: stateIcon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(stateColor)
-                    .frame(width: 38, height: 38)
-                    .background(CW.raised)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9)
-                            .stroke(tg.listen == .off ? CW.border : stateColor.opacity(0.5), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                editChip
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Listen state: \(tg.listen.rawValue)")
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tg.name.isEmpty ? "TG \(tg.tg)" : tg.name)
-                    .font(CW.sans(15, .medium))
-                    .foregroundStyle(tg.listen == .off ? CW.dim : CW.white)
-                // String(tg) keeps Text's localized interpolation from
-                // rendering 3100 as "3,100"
-                Text("TG \(String(tg.tg)) · \(tg.listen.rawValue)")
-                    .font(CW.mono(11))
-                    .foregroundStyle(CW.dim)
-            }
-            Spacer()
-            Button(action: selectTX) {
-                VStack(spacing: 3) {
-                    ZStack {
-                        Circle()
-                            .stroke(isTX ? CW.blue : CW.xdim, lineWidth: 2)
-                            .frame(width: 18, height: 18)
-                        if isTX {
-                            Circle().fill(CW.blue).frame(width: 9, height: 9)
-                        }
-                    }
-                    Text("TX")
-                        .font(CW.mono(9))
-                        .foregroundStyle(CW.dim)
-                }
-                .opacity(tg.listen == .live || isTX ? 1 : 0.35)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isTX ? "Talk target" : "Set as talk target")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 2)
+        .background(CW.bg)
+        .overlay(alignment: .bottom) {
+            CW.border.frame(height: 1)
+        }
     }
 
     // MARK: Private
 
-    private var stateIcon: String {
-        switch tg.listen {
+    private var editChip: some View {
+        let empty = !settings.talkgroupList.contains { $0.tg > 0 }
+        return Button(action: onEdit) {
+            HStack(spacing: 5) {
+                Image(systemName: empty ? "plus" : "pencil")
+                    .font(.system(size: 11, weight: .medium))
+                if empty {
+                    Text("Add talkgroups")
+                        .font(CW.sans(13, .medium))
+                }
+            }
+            .foregroundStyle(CW.dim)
+            .padding(.horizontal, 11)
+            .frame(height: 36)
+            .overlay(Capsule().stroke(CW.border, lineWidth: 1))
+            .clipShape(Capsule())
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(empty ? "Add talkgroups" : "Edit talkgroups")
+    }
+
+    private func chip(_ tg: Talkgroup) -> some View {
+        let isTX = settings.txTargetTG == Int(tg.tg)
+        return Menu {
+            Picker("Listen state", selection: Binding(
+                get: { tg.listen },
+                set: { state in
+                    settings.setListen(tg.tg, state)
+                    model.applyListenStates(settings)
+                }
+            )) {
+                Label("Live", systemImage: "speaker.wave.2.fill")
+                    .tag(ListenState.live)
+                Label("Muted", systemImage: "speaker.slash.fill")
+                    .tag(ListenState.muted)
+                Label("Off", systemImage: "power")
+                    .tag(ListenState.off)
+            }
+            if tg.listen == .live {
+                Button(isTX ? "Clear talk target" : "Set talk target") {
+                    settings.txTargetTG = isTX ? 0 : Int(tg.tg)
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isTX ? "mic.fill" : stateIcon(tg.listen))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(isTX ? CW.blue : stateColor(tg.listen))
+                // String(tg) keeps Text's localized interpolation from
+                // rendering 3100 as "3,100"
+                Text(tg.name.isEmpty ? "TG \(String(tg.tg))" : tg.name)
+                    .font(CW.sans(13, .medium))
+                    .foregroundStyle(tg.listen == .off ? CW.dim : CW.white)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 11)
+            .frame(height: 36)
+            .background(CW.raised)
+            .overlay(
+                Capsule().stroke(
+                    tg.listen == .off ? CW.border : stateColor(tg.listen).opacity(0.5),
+                    lineWidth: 1
+                )
+            )
+            .clipShape(Capsule())
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(chipAccessibilityLabel(tg, isTX: isTX))
+    }
+
+    private func chipAccessibilityLabel(_ tg: Talkgroup, isTX: Bool) -> String {
+        let name = tg.name.isEmpty ? "talkgroup \(tg.tg)" : tg.name
+        return "\(name), \(tg.listen.rawValue)\(isTX ? ", talk target" : "")"
+    }
+
+    private func stateIcon(_ state: ListenState) -> String {
+        switch state {
         case .live: "speaker.wave.2.fill"
         case .muted: "speaker.slash.fill"
         case .off: "power"
         }
     }
 
-    private var stateColor: Color {
-        switch tg.listen {
+    private func stateColor(_ state: ListenState) -> Color {
+        switch state {
         case .live: CW.green
         case .muted: CW.amber
         case .off: CW.xdim

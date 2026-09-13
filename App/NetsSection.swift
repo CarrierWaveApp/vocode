@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Main-screen "// NETS" card: the next couple of upcoming nets with a
-/// countdown and one-tap Join. body IS a Section so ContentView only
-/// inserts `NetsSection()`.
+/// Main-screen nets card: shown only when a net is live or starts within
+/// the hour, so config noise stays out of the activity view. The full
+/// list lives in Settings → Nets. body IS a Section (or nothing) so
+/// ContentView only inserts `NetsSection()`.
 struct NetsSection: View {
     // MARK: Internal
 
@@ -10,41 +11,37 @@ struct NetsSection: View {
     @EnvironmentObject var model: MonitorModel
 
     var body: some View {
-        Section {
-            if upcoming.isEmpty {
-                NavigationLink {
-                    NetsView()
-                } label: {
-                    Text(settings.netList.isEmpty
-                        ? "Add nets to get reminders"
-                        : "No upcoming nets")
-                        .font(CW.sans(15))
-                        .foregroundStyle(CW.dim)
-                }
-            } else {
+        if !upcoming.isEmpty {
+            Section {
                 ForEach(upcoming, id: \.net.id) { entry in
                     row(entry.net, start: entry.start)
                 }
-                NavigationLink("All nets (\(settings.netList.count))") {
-                    NetsView()
-                }
-                .font(CW.sans(14))
-                .foregroundStyle(CW.dim)
+            } header: {
+                SectionLabel("Nets")
             }
-        } header: {
-            SectionLabel("Nets")
         }
     }
 
     // MARK: Private
 
-    /// Next two enabled nets by start time; recomputed on each timeline tick
+    /// How far ahead a net may start and still earn main-screen space
+    private static let window: TimeInterval = 3_600
+
+    /// Up to two enabled nets that are live now or start within the window
     private var upcoming: [(net: Net, start: Date)] {
         let now = Date()
         return settings.netList
             .filter { $0.enabled && $0.talkgroup > 0 && !$0.weekdays.isEmpty }
-            .compactMap { net in
-                NetSchedule.nextOccurrence(of: net, after: now).map { (net, $0) }
+            .compactMap { net -> (Net, Date)? in
+                guard let start = NetSchedule.nextOccurrence(of: net, after: now) else {
+                    return nil
+                }
+                guard NetSchedule.isLive(net, at: now)
+                    || start.timeIntervalSince(now) <= Self.window
+                else {
+                    return nil
+                }
+                return (net, start)
             }
             .sorted { $0.1 < $1.1 }
             .prefix(2)
