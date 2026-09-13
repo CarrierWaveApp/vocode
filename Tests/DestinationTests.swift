@@ -1,16 +1,24 @@
 import XCTest
 @testable import DMRMonitor
 
+/// Destination model tests. These run hosted inside the real app on a
+/// physical device, so they must NEVER touch UserDefaults.standard —
+/// that is the user's live configuration. Every test points
+/// Settings.store at a throwaway suite and wipes only that.
 final class DestinationTests: XCTestCase {
     // MARK: Internal
 
     override func setUp() {
         super.setUp()
-        clearDefaults()
+        let suite = UserDefaults(suiteName: Self.suiteName)!
+        suite.removePersistentDomain(forName: Self.suiteName)
+        Settings.store = suite
     }
 
     override func tearDown() {
-        clearDefaults()
+        UserDefaults(suiteName: Self.suiteName)?
+            .removePersistentDomain(forName: Self.suiteName)
+        Settings.store = .standard
         super.tearDown()
     }
 
@@ -41,7 +49,7 @@ final class DestinationTests: XCTestCase {
     }
 
     func testMigrationCreatesOneDestinationPerConfiguredSystem() throws {
-        let defaults = UserDefaults.standard
+        let defaults = Settings.store
         defaults.set("dstar", forKey: "netMode")
         defaults.set("xlx307.duckdns.org", forKey: "dstarHost")
         defaults.set("D", forKey: "dstarModule")
@@ -101,18 +109,16 @@ final class DestinationTests: XCTestCase {
         XCTAssertEqual(settings.talkgroupList.map(\.tg), [2])
     }
 
+    func testStoreIsolationLeavesStandardDefaultsAlone() {
+        // The guard this file exists for: constructing and mutating a
+        // Settings must not write through to UserDefaults.standard
+        let before = UserDefaults.standard.string(forKey: "netMode")
+        let settings = Settings()
+        settings.netMode = "dstar"
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "netMode"), before)
+    }
+
     // MARK: Private
 
-    private let keys = [
-        "netMode", "host", "port", "otpPort", "autoMaster", "dmrID",
-        "dstarHost", "dstarModule", "aslTarget", "talkgroupsJSON",
-        "txTargetTG", "options", "singleTG", "destinationsJSON",
-        "activeDestinationID",
-    ]
-
-    private func clearDefaults() {
-        for key in keys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
-    }
+    private static let suiteName = "com.carrierwave.DMRMonitor.DestinationTests"
 }

@@ -60,56 +60,62 @@ final class Settings: ObservableObject {
 
     // MARK: Internal
 
-    @AppStorage("netMode") var netMode = "openterminal"
-    @AppStorage("host") var host = "3103.master.brandmeister.network"
-    @AppStorage("port") var port = 62_031
-    @AppStorage("otpPort") var otpPort = 54_006
-    @AppStorage("dmrID") var dmrID = ""
-    @AppStorage("suffix") var suffix = "01"
-    @AppStorage("password") var password = ""
-    @AppStorage("callsign") var callsign = ""
-    @AppStorage("options") var options = "TS2_1=91;TS2_2=3100"
-    @AppStorage("location") var location = ""
-    @AppStorage("talkgroupsJSON") var talkgroupsJSON = ""
-    @AppStorage("dstarHost") var dstarHost = ""
-    @AppStorage("dstarModule") var dstarModule = "B"
+    /// Backing defaults for every @AppStorage key. Tests MUST point this
+    /// at their own suite before constructing a Settings — on-device test
+    /// runs share the real app container, and a test that touches
+    /// UserDefaults.standard wipes the user's actual configuration.
+    static var store: UserDefaults = .standard
+
+    @AppStorage("netMode", store: Settings.store) var netMode = "openterminal"
+    @AppStorage("host", store: Settings.store) var host = "3103.master.brandmeister.network"
+    @AppStorage("port", store: Settings.store) var port = 62_031
+    @AppStorage("otpPort", store: Settings.store) var otpPort = 54_006
+    @AppStorage("dmrID", store: Settings.store) var dmrID = ""
+    @AppStorage("suffix", store: Settings.store) var suffix = "01"
+    @AppStorage("password", store: Settings.store) var password = ""
+    @AppStorage("callsign", store: Settings.store) var callsign = ""
+    @AppStorage("options", store: Settings.store) var options = "TS2_1=91;TS2_2=3100"
+    @AppStorage("location", store: Settings.store) var location = ""
+    @AppStorage("talkgroupsJSON", store: Settings.store) var talkgroupsJSON = ""
+    @AppStorage("dstarHost", store: Settings.store) var dstarHost = ""
+    @AppStorage("dstarModule", store: Settings.store) var dstarModule = "B"
     // AllStar: our registered node credentials plus the node to link to
-    @AppStorage("aslMyNode") var aslMyNode = ""
-    @AppStorage("aslPassword") var aslPassword = ""
-    @AppStorage("aslTarget") var aslTarget = ""
+    @AppStorage("aslMyNode", store: Settings.store) var aslMyNode = ""
+    @AppStorage("aslPassword", store: Settings.store) var aslPassword = ""
+    @AppStorage("aslTarget", store: Settings.store) var aslTarget = ""
     // Open Terminal only: probe all masters at connect and use the fastest.
     // "Master" is BrandMeister's own term for its servers.
     // swiftlint:disable:next inclusive_language
-    @AppStorage("autoMaster") var autoMaster = true
-    @AppStorage("txTargetTG") var txTargetTG = 0
+    @AppStorage("autoMaster", store: Settings.store) var autoMaster = true
+    @AppStorage("txTargetTG", store: Settings.store) var txTargetTG = 0
     // Default: exactly one talkgroup subscribed at a time; going live on
     // one switches the others off. Turn off for multi-talkgroup monitoring.
-    @AppStorage("singleTG") var singleTG = true
+    @AppStorage("singleTG", store: Settings.store) var singleTG = true
     // Push-to-talk style: false = hold to talk, true = tap to key up and
     // tap again to stop
-    @AppStorage("pttToggle") var pttToggle = false
+    @AppStorage("pttToggle", store: Settings.store) var pttToggle = false
     // TX time-out timer in seconds; 0 disables it
-    @AppStorage("txTimeoutSecs") var txTimeoutSecs = 120
+    @AppStorage("txTimeoutSecs", store: Settings.store) var txTimeoutSecs = 120
     // QRZ XML API credentials for map geocoding; plain AppStorage matches
     // the existing hotspot-password precedent
-    @AppStorage("qrzUser") var qrzUser = ""
-    @AppStorage("qrzPassword") var qrzPassword = ""
-    @AppStorage("mapOverlay") var mapOverlay = true
+    @AppStorage("qrzUser", store: Settings.store) var qrzUser = ""
+    @AppStorage("qrzPassword", store: Settings.store) var qrzPassword = ""
+    @AppStorage("mapOverlay", store: Settings.store) var mapOverlay = true
     // 0 = follow my subscribed talkgroups
-    @AppStorage("mapOverlayTG") var mapOverlayTG = 0
+    @AppStorage("mapOverlayTG", store: Settings.store) var mapOverlayTG = 0
     // Buddy watch: server-side push when watched callsigns key up
-    @AppStorage("buddyWatchEnabled") var buddyWatchEnabled = false
-    @AppStorage("buddyServerURL") var buddyServerURL = "https://dmr.carrierwave.app"
-    @AppStorage("buddyAPIToken") var buddyAPIToken = ""
-    @AppStorage("buddyDeviceID") var buddyDeviceID = ""
-    @AppStorage("buddyLastToken") var buddyLastToken = ""
-    @AppStorage("buddyLastSynced") var buddyLastSynced = ""
-    @AppStorage("buddiesJSON") var buddiesJSON = ""
-    @AppStorage("netsJSON") var netsJSON = ""
+    @AppStorage("buddyWatchEnabled", store: Settings.store) var buddyWatchEnabled = false
+    @AppStorage("buddyServerURL", store: Settings.store) var buddyServerURL = "https://dmr.carrierwave.app"
+    @AppStorage("buddyAPIToken", store: Settings.store) var buddyAPIToken = ""
+    @AppStorage("buddyDeviceID", store: Settings.store) var buddyDeviceID = ""
+    @AppStorage("buddyLastToken", store: Settings.store) var buddyLastToken = ""
+    @AppStorage("buddyLastSynced", store: Settings.store) var buddyLastSynced = ""
+    @AppStorage("buddiesJSON", store: Settings.store) var buddiesJSON = ""
+    @AppStorage("netsJSON", store: Settings.store) var netsJSON = ""
     // Saved destinations (see Destination.swift); the keys above stay the
     // working state the connect path reads
-    @AppStorage("destinationsJSON") var destinationsJSON = ""
-    @AppStorage("activeDestinationID") var activeDestinationID = ""
+    @AppStorage("destinationsJSON", store: Settings.store) var destinationsJSON = ""
+    @AppStorage("activeDestinationID", store: Settings.store) var activeDestinationID = ""
 
     var talkgroupList: [Talkgroup] {
         get {
