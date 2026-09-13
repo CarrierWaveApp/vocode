@@ -16,20 +16,6 @@ struct DestinationSwitcherView: View {
             List {
                 Section {
                     statusRow
-                    NavigationLink {
-                        LogView()
-                    } label: {
-                        HStack {
-                            Text("Connection log")
-                            Spacer()
-                            if let last = model.log.first {
-                                Text(last.line)
-                                    .font(CW.mono(11))
-                                    .foregroundStyle(last.isError ? CW.red : CW.dim)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
                 }
                 Section {
                     ForEach(settings.destinations) { dest in
@@ -95,14 +81,12 @@ struct DestinationSwitcherView: View {
                 .foregroundStyle(model.isConnected ? CW.white : CW.text)
                 .lineLimit(1)
             Spacer()
-            Button(model.isConnected ? "Disconnect" : "Connect") {
-                if model.isConnected {
-                    model.disconnect()
-                } else {
+            if !model.isConnected {
+                Button("Connect") {
                     model.connect(settings)
                 }
+                .buttonStyle(PillButtonStyle())
             }
-            .buttonStyle(PillButtonStyle(filled: !model.isConnected))
         }
         .padding(.vertical, 4)
     }

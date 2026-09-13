@@ -16,7 +16,6 @@ struct ContentView: View {
                 if !model.isConnected || model.audioError != nil {
                     Section {
                         statusRow
-                        logLink
                         if let err = model.audioError {
                             Text(err).font(CW.sans(12)).foregroundStyle(CW.red)
                         }
@@ -179,23 +178,6 @@ struct ContentView: View {
         .accessibilityHint("Opens the destination switcher")
     }
 
-    private var logLink: some View {
-        NavigationLink {
-            LogView()
-        } label: {
-            HStack {
-                Text("Connection log")
-                Spacer()
-                if let last = model.log.first {
-                    Text(last.line)
-                        .font(CW.mono(11))
-                        .foregroundStyle(last.isError ? CW.red : CW.dim)
-                        .lineLimit(1)
-                }
-            }
-        }
-    }
-
     private var statusRow: some View {
         HStack(spacing: 10) {
             Circle()
@@ -205,14 +187,12 @@ struct ContentView: View {
                 .font(CW.sans(15, .medium))
                 .foregroundStyle(model.isConnected ? CW.white : CW.text)
             Spacer()
-            Button(model.isConnected ? "Disconnect" : "Connect") {
-                if model.isConnected {
-                    model.disconnect()
-                } else {
+            if !model.isConnected {
+                Button("Connect") {
                     model.connect(settings)
                 }
+                .buttonStyle(PillButtonStyle())
             }
-            .buttonStyle(PillButtonStyle(filled: !model.isConnected))
         }
         .padding(.vertical, 4)
     }
@@ -687,6 +667,7 @@ struct SettingsView: View {
                 Section {
                     NavigationLink("Callsign notes") { CallNotesView() }
                     NavigationLink("Nets") { NetsView() }
+                    NavigationLink("Connection log") { LogView() }
                 } header: {
                     SectionLabel("Data")
                 }
