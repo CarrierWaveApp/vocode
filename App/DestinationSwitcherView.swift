@@ -217,6 +217,29 @@ struct DestinationEditView: View {
         return host
     }
 
+    private var homebrewLabel: String {
+        if draft.autoMaster, !draft.network.isEmpty {
+            return draft.network
+        }
+        let host = draft.host.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty else {
+            return "Choose a server"
+        }
+        return "\(host):\(draft.port)"
+    }
+
+    private var homebrewFooter: String {
+        if draft.autoMaster, !draft.network.isEmpty {
+            return "Connect probes every \(draft.network) server and uses the fastest."
+        }
+        if draft.network.isEmpty, draft.host.isEmpty {
+            return "TGIF, AmComm, FreeDMR, DMR+ and the HBLink networks, or your own hotspot "
+                + "or repeater. Not BrandMeister — that has its own destination kind."
+        }
+        return "Connects to the selected server. Uses the DMR ID, callsign, ESSID suffix "
+            + "and location from Settings."
+    }
+
     private var nodeLabel: String {
         let target = draft.node.trimmingCharacters(in: .whitespaces)
         guard !target.isEmpty else {
@@ -257,19 +280,28 @@ struct DestinationEditView: View {
             }
         case .hotspot:
             Section {
-                TextField("Host", text: $draft.host)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(CW.mono(14))
-                TextField("Port", value: $draft.port, format: .number)
-                    .keyboardType(.numberPad)
-                    .font(CW.mono(14))
+                NavigationLink {
+                    HomebrewPickerView(host: $draft.host, port: $draft.port,
+                                       autoMaster: $draft.autoMaster,
+                                       network: $draft.network,
+                                       networkPassword: $draft.networkPassword)
+                } label: {
+                    HStack(spacing: 10) {
+                        Text(homebrewLabel)
+                            .font(CW.mono(14))
+                            .lineLimit(1)
+                        if draft.autoMaster, !draft.network.isEmpty {
+                            Text("auto")
+                                .font(CW.mono(11))
+                                .foregroundStyle(CW.dim)
+                        }
+                        Spacer()
+                    }
+                }
             } header: {
                 SectionLabel("Homebrew (MMDVM)")
             } footer: {
-                FooterNote("Master address for a network speaking the MMDVM dialect of "
-                    + "Homebrew — TGIF, AmComm, FreeDMR, DMR+ — or your own hotspot or "
-                    + "repeater. Uses the DMR ID, password, suffix, and location from Settings.")
+                FooterNote(homebrewFooter)
             }
         case .dstar:
             Section {

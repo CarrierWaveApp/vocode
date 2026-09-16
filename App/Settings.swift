@@ -87,6 +87,10 @@ final class Settings: ObservableObject {
     // "Master" is BrandMeister's own term for its servers.
     // swiftlint:disable:next inclusive_language
     @AppStorage("autoMaster", store: Settings.store) var autoMaster = true
+    /// Homebrew working keys: the `DMR_Hosts.txt` network the active
+    /// destination picks a master from, and that network's shared password.
+    @AppStorage("hbNetwork", store: Settings.store) var hbNetwork = ""
+    @AppStorage("hbPassword", store: Settings.store) var hbPassword = ""
     @AppStorage("txTargetTG", store: Settings.store) var txTargetTG = 0
     // Default: exactly one talkgroup subscribed at a time; going live on
     // one switches the others off. Turn off for multi-talkgroup monitoring.
@@ -278,8 +282,11 @@ final class Settings: ObservableObject {
     }
 
     var homebrewConfig: HomebrewConfig? {
+        // Most networks publish a shared password in the host file; only
+        // the ones listing a literal PASSWORD need the operator's own.
+        let secret = hbPassword.isEmpty ? password : hbPassword
         guard let id = repeaterID,
-              !host.isEmpty, !password.isEmpty, !callsign.isEmpty,
+              !host.isEmpty, !secret.isEmpty, !callsign.isEmpty,
               port > 0, port < 65_536
         else {
             return nil
@@ -288,7 +295,7 @@ final class Settings: ObservableObject {
             host: host.trimmingCharacters(in: .whitespaces),
             port: UInt16(port),
             repeaterID: id,
-            password: password,
+            password: secret,
             callsign: callsign.uppercased(),
             options: homebrewOptions,
             location: location

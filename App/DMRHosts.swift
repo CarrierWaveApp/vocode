@@ -109,19 +109,33 @@ final class DMRHostsDirectory: ObservableObject {
     }
 
     func loadIfNeeded() {
-        guard !loaded else {
+        Task { await ensureLoaded() }
+    }
+
+    /// Populates `all` from the cache or the bundled snapshot if that hasn't
+    /// happened yet, then detaches the staleness refresh. Awaiting this gives
+    /// a usable list off disk without waiting on the network, which is what
+    /// the connect path needs: an auto destination has to work even when the
+    /// picker was never opened this launch.
+    func ensureLoaded() async {
+        // Hold the load as a task rather than a done flag: a flag set before
+        // the parse suspends would let a second caller through with `all`
+        // still empty, which on the connect path means "no servers listed".
+        if let loadTask {
+            await loadTask.value
             return
         }
-        loaded = true
-        Task {
+        let task = Task { @MainActor in
             let cached = Self.cacheFile
             let bundled = Bundle.main.url(forResource: "DMR_Hosts", withExtension: "txt")
             let source = FileManager.default.fileExists(atPath: cached.path) ? cached : bundled
             if let source, let parsed = await Self.parse(url: source) {
                 all = parsed
             }
-            await refreshIfStale()
+            Task { await refreshIfStale() }
         }
+        loadTask = task
+        await task.value
     }
 
     func hosts(network: String) -> [DMRHost] {
@@ -147,7 +161,7 @@ final class DMRHostsDirectory: ObservableObject {
             .appendingPathComponent("DMR_Hosts.txt")
     }
 
-    private var loaded = false
+    private var loadTask: Task<Void, Never>?
 
     /// `#\t\tAmComm Network Hosts Below` → `AmComm Network`.
     nonisolated private static func sectionName(_ line: String) -> String? {

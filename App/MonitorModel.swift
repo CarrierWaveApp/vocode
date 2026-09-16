@@ -98,7 +98,11 @@ final class MonitorModel: ObservableObject {
             settings.enforceSingleLive()
         }
         if settings.netMode == "homebrew" {
-            connectHomebrew(settings)
+            if settings.autoMaster, !settings.hbNetwork.isEmpty {
+                findHomebrewServerThenConnect(settings)
+            } else {
+                connectHomebrew(settings)
+            }
         } else if settings.netMode == "dstar" {
             connectDStar(settings)
         } else if settings.netMode == "allstar" {
@@ -283,6 +287,7 @@ final class MonitorModel: ObservableObject {
     private var client: HomebrewClient?
     private var rewind: RewindClient?
     private var scout: MasterScout?
+    private var hbScout: HomebrewScout?
     private let lookup = CallsignLookup()
     private let maxLog = 300
 
@@ -310,6 +315,47 @@ final class MonitorModel: ObservableObject {
                 appendLog("no master reachable, trying \(settings.host)", error: true)
             }
             connectRewind(settings)
+        }
+    }
+
+    /// Probe every server of the selected network, point the host at the
+    /// fastest, then connect. Falls back to the configured host if nothing
+    /// answers. The mirror of findMasterThenConnect on the BrandMeister side.
+    private func findHomebrewServerThenConnect(_ settings: Settings) {
+        link = .connecting
+        appendLog("probing \(settings.hbNetwork) for lowest latency")
+        Task { @MainActor in
+            await DMRHostsDirectory.shared.ensureLoaded()
+            probeThenConnectHomebrew(settings)
+        }
+    }
+
+    private func probeThenConnectHomebrew(_ settings: Settings) {
+        let candidates = DMRHostsDirectory.shared.hosts(network: settings.hbNetwork)
+        guard !candidates.isEmpty else {
+            appendLog("no servers listed for \(settings.hbNetwork)", error: true)
+            connectHomebrew(settings)
+            return
+        }
+        let scout = HomebrewScout()
+        hbScout = scout
+        scout.probeAll(candidates) { [weak self] fastest in
+            guard let self, hbScout === scout else {
+                return
+            }
+            hbScout = nil
+            if let (server, millis) = fastest {
+                settings.host = server.host
+                settings.port = Int(server.port)
+                // A network listing a literal PASSWORD wants the operator's
+                // own, so leave the working key empty and let Settings fall
+                // back to it.
+                settings.hbPassword = server.needsOwnPassword ? "" : server.password
+                appendLog("nearest server: \(server.label), \(millis) ms")
+            } else {
+                appendLog("no server reachable, trying \(settings.host)", error: true)
+            }
+            connectHomebrew(settings)
         }
     }
 
