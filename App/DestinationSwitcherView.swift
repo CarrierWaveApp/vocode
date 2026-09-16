@@ -189,8 +189,11 @@ struct DestinationEditView: View {
         case .brandmeister:
             draft.autoMaster || !draft.host.trimmingCharacters(in: .whitespaces).isEmpty
         case .hotspot:
-            !draft.host.trimmingCharacters(in: .whitespaces).isEmpty
-                && draft.port > 0 && draft.port < 65_536
+            // An auto destination carries no host until the probe picks one,
+            // the same as BrandMeister above.
+            (draft.autoMaster && !draft.network.isEmpty)
+                || (!draft.host.trimmingCharacters(in: .whitespaces).isEmpty
+                    && draft.port > 0 && draft.port < 65_536)
         case .dstar:
             !draft.host.trimmingCharacters(in: .whitespaces).isEmpty
                 && !draft.module.trimmingCharacters(in: .whitespaces).isEmpty
