@@ -76,10 +76,20 @@ struct DestinationSwitcherView: View {
             Circle()
                 .fill(model.isConnected ? CW.green : CW.xdim)
                 .frame(width: 8, height: 8)
-            Text(model.isConnected ? settings.connectedSummary : model.link.label)
-                .font(CW.sans(15, .medium))
-                .foregroundStyle(model.isConnected ? CW.white : CW.text)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.isConnected
+                    ? (settings.activeDestination?.displayName ?? model.link.label)
+                    : model.link.label)
+                    .font(CW.sans(15, .medium))
+                    .foregroundStyle(model.isConnected ? CW.white : CW.text)
+                    .lineLimit(1)
+                if model.isConnected, let server = settings.connectedServer {
+                    Text(server)
+                        .font(CW.mono(12))
+                        .foregroundStyle(CW.dim)
+                        .lineLimit(1)
+                }
+            }
             Spacer()
             if !model.isConnected {
                 Button("Connect") {

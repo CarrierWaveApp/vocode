@@ -183,6 +183,67 @@ final class DestinationTests: XCTestCase {
         XCTAssertNil(settings.homebrewConfig)
     }
 
+    // MARK: - Connected server detail
+
+    /// The server is secondary detail under the destination's name. On
+    /// BrandMeister it reads as the master's own id and country — this is the
+    /// string that used to replace "BrandMeister" in the title bar.
+    func testConnectedServerNamesTheBrandMeisterServer() {
+        let settings = Settings()
+        settings.netMode = "openterminal"
+        settings.host = "3341.master.brandmeister.network"
+        XCTAssertEqual(settings.connectedServer, "3341 Mexico")
+    }
+
+    /// An unlisted BrandMeister host still names itself rather than vanishing.
+    func testConnectedServerFallsBackToHost() {
+        let settings = Settings()
+        settings.netMode = "openterminal"
+        settings.host = "master.example.org"
+        XCTAssertEqual(settings.connectedServer, "master.example.org")
+    }
+
+    /// Homebrew ports vary by network, so the port is worth showing and
+    /// matches what the connection log prints.
+    func testConnectedServerIncludesHomebrewPort() {
+        let settings = Settings()
+        settings.netMode = "homebrew"
+        settings.host = "3105.amcomm.network"
+        settings.port = 62_031
+        XCTAssertEqual(settings.connectedServer, "3105.amcomm.network:62031")
+    }
+
+    /// For AllStar and D-STAR the node and reflector module are the
+    /// destination itself, so there is no second line to draw.
+    func testConnectedServerNilWhereItWouldRepeatTheName() {
+        let settings = Settings()
+        for mode in ["allstar", "dstar"] {
+            settings.netMode = mode
+            XCTAssertNil(settings.connectedServer, mode)
+        }
+        settings.netMode = "homebrew"
+        settings.host = ""
+        XCTAssertNil(settings.connectedServer)
+    }
+
+    /// The name shown while connected comes from the destination, so a custom
+    /// name wins and an automatic destination falls back to its network.
+    func testDisplayNamePrefersCustomThenNetwork() {
+        var named = Destination(kind: .hotspot, name: "Shack")
+        named.network = "AmComm Network"
+        named.autoMaster = true
+        XCTAssertEqual(named.displayName, "Shack")
+
+        var unnamed = Destination(kind: .hotspot)
+        unnamed.network = "AmComm Network"
+        unnamed.autoMaster = true
+        XCTAssertEqual(unnamed.displayName, "AmComm Network")
+
+        var auto = Destination(kind: .brandmeister)
+        auto.autoMaster = true
+        XCTAssertEqual(auto.displayName, "BrandMeister")
+    }
+
     // MARK: Private
 
     private static let suiteName = "com.carrierwave.DMRMonitor.DestinationTests"

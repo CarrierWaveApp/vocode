@@ -283,6 +283,35 @@ final class Settings: ObservableObject {
         return host
     }
 
+    /// Which server the link actually landed on. Strictly secondary to the
+    /// destination's own name: the network is what the operator chose, the
+    /// server is just whichever box answered fastest, and on an automatic
+    /// destination it changes between connects. Nil where naming it would
+    /// only repeat the destination.
+    ///
+    /// No `DMRHostsDirectory` lookup here — it is main-actor bound and this
+    /// is read from nonisolated contexts, the same constraint `Destination`
+    /// works under. `BMDirectory` is a plain static table and is safe.
+    var connectedServer: String? {
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        switch netMode {
+        case "allstar",
+             "dstar":
+            // The node and the reflector module are the destination itself.
+            return nil
+        case "homebrew":
+            return trimmed.isEmpty ? nil : "\(trimmed):\(port)"
+        default:
+            guard !trimmed.isEmpty else {
+                return nil
+            }
+            if let server = BMDirectory.master(forHost: trimmed) {
+                return "\(server.id) \(server.country)"
+            }
+            return trimmed
+        }
+    }
+
     var homebrewConfig: HomebrewConfig? {
         // Most networks publish a shared password in the host file; only
         // the ones listing a literal PASSWORD need the operator's own.
