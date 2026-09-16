@@ -20,6 +20,8 @@ targets:
         buildPhase: resources
       - path: Resources/ASLNodes
         buildPhase: resources
+      - path: Resources/DMRHosts
+        buildPhase: resources
       - path: Resources/Assets.xcassets
     dependencies:
       - package: AMBE

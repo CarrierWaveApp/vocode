@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - TxDestination
 
 /// TX destination for the talk UI: the linked node on AllStar, the
-/// selected talkgroup on BrandMeister. D-STAR and hotspot links are
+/// selected talkgroup on BrandMeister. D-STAR and Homebrew links are
 /// receive-only — the talk UI says so instead of dangling a dead PTT.
 struct TxDestination {
     // MARK: Lifecycle

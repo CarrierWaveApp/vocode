@@ -76,10 +76,20 @@ struct DestinationSwitcherView: View {
             Circle()
                 .fill(model.isConnected ? CW.green : CW.xdim)
                 .frame(width: 8, height: 8)
-            Text(model.isConnected ? settings.connectedSummary : model.link.label)
-                .font(CW.sans(15, .medium))
-                .foregroundStyle(model.isConnected ? CW.white : CW.text)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.isConnected
+                    ? (settings.activeDestination?.displayName ?? model.link.label)
+                    : model.link.label)
+                    .font(CW.sans(15, .medium))
+                    .foregroundStyle(model.isConnected ? CW.white : CW.text)
+                    .lineLimit(1)
+                if model.isConnected, let server = settings.connectedServer {
+                    Text(server)
+                        .font(CW.mono(12))
+                        .foregroundStyle(CW.dim)
+                        .lineLimit(1)
+                }
+            }
             Spacer()
             if !model.isConnected {
                 Button("Connect") {
@@ -189,8 +199,11 @@ struct DestinationEditView: View {
         case .brandmeister:
             draft.autoMaster || !draft.host.trimmingCharacters(in: .whitespaces).isEmpty
         case .hotspot:
-            !draft.host.trimmingCharacters(in: .whitespaces).isEmpty
-                && draft.port > 0 && draft.port < 65_536
+            // An auto destination carries no host until the probe picks one,
+            // the same as BrandMeister above.
+            (draft.autoMaster && !draft.network.isEmpty)
+                || (!draft.host.trimmingCharacters(in: .whitespaces).isEmpty
+                    && draft.port > 0 && draft.port < 65_536)
         case .dstar:
             !draft.host.trimmingCharacters(in: .whitespaces).isEmpty
                 && !draft.module.trimmingCharacters(in: .whitespaces).isEmpty
@@ -215,6 +228,29 @@ struct DestinationEditView: View {
             return "\(reflector.name) · \(reflector.country)"
         }
         return host
+    }
+
+    private var homebrewLabel: String {
+        if draft.autoMaster, !draft.network.isEmpty {
+            return draft.network
+        }
+        let host = draft.host.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty else {
+            return "Choose a server"
+        }
+        return "\(host):\(draft.port)"
+    }
+
+    private var homebrewFooter: String {
+        if draft.autoMaster, !draft.network.isEmpty {
+            return "Connect probes every \(draft.network) server and uses the fastest."
+        }
+        if draft.network.isEmpty, draft.host.isEmpty {
+            return "TGIF, AmComm, FreeDMR, DMR+ and the HBLink networks, or your own hotspot "
+                + "or repeater. Not BrandMeister — that has its own destination kind."
+        }
+        return "Connects to the selected server. Uses the DMR ID, callsign, ESSID suffix "
+            + "and location from Settings."
     }
 
     private var nodeLabel: String {
@@ -257,18 +293,28 @@ struct DestinationEditView: View {
             }
         case .hotspot:
             Section {
-                TextField("Host", text: $draft.host)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(CW.mono(14))
-                TextField("Port", value: $draft.port, format: .number)
-                    .keyboardType(.numberPad)
-                    .font(CW.mono(14))
+                NavigationLink {
+                    HomebrewPickerView(host: $draft.host, port: $draft.port,
+                                       autoMaster: $draft.autoMaster,
+                                       network: $draft.network,
+                                       networkPassword: $draft.networkPassword)
+                } label: {
+                    HStack(spacing: 10) {
+                        Text(homebrewLabel)
+                            .font(CW.mono(14))
+                            .lineLimit(1)
+                        if draft.autoMaster, !draft.network.isEmpty {
+                            Text("auto")
+                                .font(CW.mono(11))
+                                .foregroundStyle(CW.dim)
+                        }
+                        Spacer()
+                    }
+                }
             } header: {
-                SectionLabel("Hotspot")
+                SectionLabel("Homebrew (MMDVM)")
             } footer: {
-                FooterNote("Your hotspot or repeater's Homebrew address. "
-                    + "Uses the DMR ID, password, suffix, and location from Settings.")
+                FooterNote(homebrewFooter)
             }
         case .dstar:
             Section {

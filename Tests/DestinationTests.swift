@@ -118,6 +118,132 @@ final class DestinationTests: XCTestCase {
         XCTAssertEqual(UserDefaults.standard.string(forKey: "netMode"), before)
     }
 
+    // MARK: - Homebrew network selection
+
+    /// Destinations saved before the network fields existed must still
+    /// decode, landing on manual (no network) rather than auto-picking.
+    func testDecodeToleratesMissingNetworkFields() throws {
+        let json = #"[{"kind":"hotspot","host":"3103.amcomm.network","port":62031}]"#
+        let list = try JSONDecoder().decode([Destination].self, from: Data(json.utf8))
+        XCTAssertEqual(list[0].network, "")
+        XCTAssertEqual(list[0].networkPassword, "")
+    }
+
+    /// Activating a Homebrew destination loads the network and its password
+    /// into the working keys, and snapshotting carries them back.
+    func testHomebrewNetworkRoundTripsThroughWorkingKeys() throws {
+        let settings = Settings()
+        var dest = Destination(kind: .hotspot, name: "AmComm")
+        dest.network = "AmComm Network"
+        dest.networkPassword = "Passw0rd"
+        dest.autoMaster = true
+        settings.activate(dest)
+        XCTAssertEqual(settings.hbNetwork, "AmComm Network")
+        XCTAssertEqual(settings.hbPassword, "Passw0rd")
+        XCTAssertTrue(settings.autoMaster)
+
+        // The connect-time probe rewrites the working host; it must survive.
+        settings.host = "3105.amcomm.network"
+        settings.port = 62_031
+        settings.snapshotActiveDestination()
+        let saved = try XCTUnwrap(settings.activeDestination)
+        XCTAssertEqual(saved.host, "3105.amcomm.network")
+        XCTAssertEqual(saved.network, "AmComm Network")
+        XCTAssertEqual(saved.networkPassword, "Passw0rd")
+    }
+
+    /// The network's published password is used when there is one, and the
+    /// operator's own only when the network demands it.
+    func testHomebrewConfigPrefersNetworkPassword() throws {
+        let settings = Settings()
+        settings.callsign = "N0CALL"
+        settings.dmrID = "3101234"
+        settings.suffix = "01"
+        settings.host = "3103.amcomm.network"
+        settings.port = 62_031
+
+        settings.password = "my-selfcare-key"
+        settings.hbPassword = "Passw0rd"
+        XCTAssertEqual(try XCTUnwrap(settings.homebrewConfig).password, "Passw0rd")
+
+        // A network listing a literal PASSWORD leaves hbPassword empty.
+        settings.hbPassword = ""
+        XCTAssertEqual(try XCTUnwrap(settings.homebrewConfig).password, "my-selfcare-key")
+    }
+
+    /// With neither password there is nothing to authenticate with, so the
+    /// connect path must refuse rather than send an empty credential.
+    func testHomebrewConfigNilWithoutAnyPassword() {
+        let settings = Settings()
+        settings.callsign = "N0CALL"
+        settings.dmrID = "3101234"
+        settings.host = "3103.amcomm.network"
+        settings.password = ""
+        settings.hbPassword = ""
+        XCTAssertNil(settings.homebrewConfig)
+    }
+
+    // MARK: - Connected server detail
+
+    /// The server is secondary detail under the destination's name. On
+    /// BrandMeister it reads as the master's own id and country — this is the
+    /// string that used to replace "BrandMeister" in the title bar.
+    func testConnectedServerNamesTheBrandMeisterServer() {
+        let settings = Settings()
+        settings.netMode = "openterminal"
+        settings.host = "3341.master.brandmeister.network"
+        XCTAssertEqual(settings.connectedServer, "3341 Mexico")
+    }
+
+    /// An unlisted BrandMeister host still names itself rather than vanishing.
+    func testConnectedServerFallsBackToHost() {
+        let settings = Settings()
+        settings.netMode = "openterminal"
+        settings.host = "master.example.org"
+        XCTAssertEqual(settings.connectedServer, "master.example.org")
+    }
+
+    /// Homebrew ports vary by network, so the port is worth showing and
+    /// matches what the connection log prints.
+    func testConnectedServerIncludesHomebrewPort() {
+        let settings = Settings()
+        settings.netMode = "homebrew"
+        settings.host = "3105.amcomm.network"
+        settings.port = 62_031
+        XCTAssertEqual(settings.connectedServer, "3105.amcomm.network:62031")
+    }
+
+    /// For AllStar and D-STAR the node and reflector module are the
+    /// destination itself, so there is no second line to draw.
+    func testConnectedServerNilWhereItWouldRepeatTheName() {
+        let settings = Settings()
+        for mode in ["allstar", "dstar"] {
+            settings.netMode = mode
+            XCTAssertNil(settings.connectedServer, mode)
+        }
+        settings.netMode = "homebrew"
+        settings.host = ""
+        XCTAssertNil(settings.connectedServer)
+    }
+
+    /// The name shown while connected comes from the destination, so a custom
+    /// name wins and an automatic destination falls back to its network.
+    func testDisplayNamePrefersCustomThenNetwork() {
+        var named = Destination(kind: .hotspot, name: "Shack")
+        named.network = "AmComm Network"
+        named.autoMaster = true
+        XCTAssertEqual(named.displayName, "Shack")
+
+        var unnamed = Destination(kind: .hotspot)
+        unnamed.network = "AmComm Network"
+        unnamed.autoMaster = true
+        XCTAssertEqual(unnamed.displayName, "AmComm Network")
+
+        var auto = Destination(kind: .brandmeister)
+        auto.autoMaster = true
+        XCTAssertEqual(auto.displayName, "BrandMeister")
+    }
+
     // MARK: Private
 
     private static let suiteName = "com.carrierwave.DMRMonitor.DestinationTests"

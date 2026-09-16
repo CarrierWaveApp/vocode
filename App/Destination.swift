@@ -4,6 +4,12 @@ import Foundation
 
 enum DestinationKind: String, Codable, CaseIterable, Identifiable {
     case brandmeister
+    /// HomeBrew Repeater Protocol, MMDVMHost (G4KLX) dialect — see `HomebrewClient`,
+    /// whose RPTC layout mirrors MMDVMHost rather than the 306-byte DL5DI one.
+    /// TGIF, AmComm, FreeDMR, DMR+/IPSC2 and HBLink networks. Not BrandMeister:
+    /// BM reserves both HBP dialects for hotspots with an onboard RF module, so
+    /// radioless clients use `.brandmeister` (Open Terminal) instead.
+    /// The raw value stays `hotspot` — saved destinations persist it.
     case hotspot
     case dstar
     case allstar
@@ -38,7 +44,7 @@ enum DestinationKind: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .brandmeister: "DMR · BrandMeister"
-        case .hotspot: "DMR · Hotspot"
+        case .hotspot: "DMR · Homebrew (MMDVM)"
         case .dstar: "D-STAR"
         case .allstar: "AllStar"
         }
@@ -74,6 +80,8 @@ struct Destination: Codable, Identifiable, Equatable, Hashable {
         port = try container.decodeIfPresent(Int.self, forKey: .port) ?? 62_031
         otpPort = try container.decodeIfPresent(Int.self, forKey: .otpPort) ?? 54_006
         autoMaster = try container.decodeIfPresent(Bool.self, forKey: .autoMaster) ?? true
+        network = try container.decodeIfPresent(String.self, forKey: .network) ?? ""
+        networkPassword = try container.decodeIfPresent(String.self, forKey: .networkPassword) ?? ""
         module = try container.decodeIfPresent(String.self, forKey: .module) ?? "B"
         node = try container.decodeIfPresent(String.self, forKey: .node) ?? ""
         talkgroups = try container.decodeIfPresent([Talkgroup].self, forKey: .talkgroups) ?? []
@@ -91,10 +99,19 @@ struct Destination: Codable, Identifiable, Equatable, Hashable {
     var port = 62_031
     /// Open Terminal port (BrandMeister only)
     var otpPort = 54_006
-    // BrandMeister only: probe all masters at connect and use the fastest.
+    // Probe every candidate server at connect and use the fastest: all of
+    // BrandMeister's masters, or every master of `network` on Homebrew.
     // ("Master" is BrandMeister's own term for its servers.)
     // swiftlint:disable:next inclusive_language
     var autoMaster = true
+    /// Homebrew only: which `DMR_Hosts.txt` network to pick a master from,
+    /// e.g. `AmComm Network`. Empty means the host below was typed by hand.
+    var network = ""
+    /// Homebrew only: the network's shared password, carried from the host
+    /// file so most networks need no password typed at all. Empty falls back
+    /// to the operator's own, which is what networks listing a literal
+    /// `PASSWORD` expect.
+    var networkPassword = ""
     /// D-STAR module letter
     var module = "B"
     /// AllStar node number to link to
@@ -120,7 +137,10 @@ struct Destination: Codable, Identifiable, Equatable, Hashable {
             }
             return host.isEmpty ? "BrandMeister" : host
         case .hotspot:
-            return host.isEmpty ? "Hotspot" : host
+            if autoMaster, !network.isEmpty {
+                return network
+            }
+            return host.isEmpty ? "Homebrew" : host
         case .dstar:
             let trimmed = host.trimmingCharacters(in: .whitespaces)
             let reflector = XLXDirectory.reflector(forHost: trimmed)?.name
@@ -143,6 +163,9 @@ struct Destination: Codable, Identifiable, Equatable, Hashable {
             let tgs = live == 1 ? "1 talkgroup" : "\(live) talkgroups"
             return autoMaster ? "\(kind.label) · nearest · \(tgs)" : "\(kind.label) · \(tgs)"
         case .hotspot:
+            if autoMaster, !network.isEmpty {
+                return "\(kind.label) · \(network) · nearest"
+            }
             return "\(kind.label) · \(host.isEmpty ? "no host" : "\(host):\(port)")"
         case .dstar:
             return "\(kind.label) · \(host.isEmpty ? "no reflector" : host)"
@@ -204,6 +227,9 @@ extension Settings {
         case .hotspot:
             dest.host = host
             dest.port = port
+            dest.autoMaster = autoMaster
+            dest.network = hbNetwork
+            dest.networkPassword = hbPassword
             dest.talkgroups = talkgroupList
             dest.txTargetTG = txTargetTG
         case .dstar:
@@ -304,9 +330,15 @@ extension Settings {
             talkgroupList = dest.talkgroups
             txTargetTG = dest.txTargetTG
         case .hotspot:
-            host = dest.host
-            port = dest.port
-            autoMaster = false
+            // An auto destination may carry no host until the probe picks
+            // one, same as BrandMeister above.
+            if !dest.host.isEmpty {
+                host = dest.host
+                port = dest.port
+            }
+            autoMaster = dest.autoMaster
+            hbNetwork = dest.network
+            hbPassword = dest.networkPassword
             talkgroupList = dest.talkgroups
             txTargetTG = dest.txTargetTG
         case .dstar:

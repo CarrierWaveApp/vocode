@@ -87,6 +87,10 @@ final class Settings: ObservableObject {
     // "Master" is BrandMeister's own term for its servers.
     // swiftlint:disable:next inclusive_language
     @AppStorage("autoMaster", store: Settings.store) var autoMaster = true
+    /// Homebrew working keys: the `DMR_Hosts.txt` network the active
+    /// destination picks a master from, and that network's shared password.
+    @AppStorage("hbNetwork", store: Settings.store) var hbNetwork = ""
+    @AppStorage("hbPassword", store: Settings.store) var hbPassword = ""
     @AppStorage("txTargetTG", store: Settings.store) var txTargetTG = 0
     // Default: exactly one talkgroup subscribed at a time; going live on
     // one switches the others off. Turn off for multi-talkgroup monitoring.
@@ -213,10 +217,12 @@ final class Settings: ObservableObject {
 
     /// MMDVMHost-style options string for the homebrew RPTO packet;
     /// off talkgroups are left out entirely
+    /// Static-talkgroup options for the `RPTO` packet, in the dialect the
+    /// selected network parses. A network that does not recognise the string
+    /// ignores it and sends nothing, so the wrong dialect reads as a healthy
+    /// but silent link — see `DMROptionsDialect`.
     var homebrewOptions: String {
-        activeTalkgroups.enumerated()
-            .map { "TS2_\($0.offset + 1)=\($0.element)" }
-            .joined(separator: ";")
+        DMROptionsDialect.forNetwork(hbNetwork).options(talkgroups: activeTalkgroups)
     }
 
     var rewindConfig: RewindConfig? {
@@ -277,9 +283,41 @@ final class Settings: ObservableObject {
         return host
     }
 
+    /// Which server the link actually landed on. Strictly secondary to the
+    /// destination's own name: the network is what the operator chose, the
+    /// server is just whichever box answered fastest, and on an automatic
+    /// destination it changes between connects. Nil where naming it would
+    /// only repeat the destination.
+    ///
+    /// No `DMRHostsDirectory` lookup here — it is main-actor bound and this
+    /// is read from nonisolated contexts, the same constraint `Destination`
+    /// works under. `BMDirectory` is a plain static table and is safe.
+    var connectedServer: String? {
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        switch netMode {
+        case "allstar",
+             "dstar":
+            // The node and the reflector module are the destination itself.
+            return nil
+        case "homebrew":
+            return trimmed.isEmpty ? nil : "\(trimmed):\(port)"
+        default:
+            guard !trimmed.isEmpty else {
+                return nil
+            }
+            if let server = BMDirectory.master(forHost: trimmed) {
+                return "\(server.id) \(server.country)"
+            }
+            return trimmed
+        }
+    }
+
     var homebrewConfig: HomebrewConfig? {
+        // Most networks publish a shared password in the host file; only
+        // the ones listing a literal PASSWORD need the operator's own.
+        let secret = hbPassword.isEmpty ? password : hbPassword
         guard let id = repeaterID,
-              !host.isEmpty, !password.isEmpty, !callsign.isEmpty,
+              !host.isEmpty, !secret.isEmpty, !callsign.isEmpty,
               port > 0, port < 65_536
         else {
             return nil
@@ -288,7 +326,7 @@ final class Settings: ObservableObject {
             host: host.trimmingCharacters(in: .whitespaces),
             port: UInt16(port),
             repeaterID: id,
-            password: password,
+            password: secret,
             callsign: callsign.uppercased(),
             options: homebrewOptions,
             location: location

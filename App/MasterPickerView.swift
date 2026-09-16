@@ -46,7 +46,9 @@ struct MasterPickerView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(CW.mono(14))
-                TextField("Port", value: $customPort, format: .number)
+                // .grouping(.never): a port is an identifier, not a quantity — the
+                // default locale formatter renders 62031 as "62,031".
+                TextField("Port", value: $customPort, format: .number.grouping(.never))
                     .keyboardType(.numberPad)
                     .font(CW.mono(14))
                 Button {
