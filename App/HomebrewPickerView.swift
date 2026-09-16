@@ -126,10 +126,16 @@ struct HomebrewPickerView: View {
                 host = trimmedCustomHost
                 port = customPort
                 autoMaster = false
-                network = ""
-                // A hand-typed server is not in the directory, so there is no
-                // published password to carry — fall back to the operator's.
-                networkPassword = ""
+                // A typed host is often one that IS in the directory — someone
+                // pasting an AmComm master rather than picking the network.
+                // Adopt its network so the options dialect is right; the wrong
+                // dialect is silently ignored by the master and the link goes
+                // quiet. Only a genuinely unknown host falls back to the
+                // operator's own password and the default dialect.
+                let known = directory.host(matching: trimmedCustomHost,
+                                           port: UInt16(clamping: customPort))
+                network = known?.network ?? ""
+                networkPassword = (known?.needsOwnPassword ?? true) ? "" : (known?.password ?? "")
                 dismiss()
             } label: {
                 HStack(spacing: 10) {
