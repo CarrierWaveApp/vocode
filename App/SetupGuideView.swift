@@ -39,15 +39,18 @@ struct SetupGuideView: View {
                 SectionLabel("Configure the app")
             }
             Section {
-                Step(1, "A hotspot destination speaks the MMDVM Homebrew protocol on port 62031. "
-                    + "BrandMeister rejects app-only clients here — that's what the BrandMeister "
-                    + "destination is for — but other networks allow it.")
-                Step(2, "TGIF: make an account at tgif.network and use the password from its self-care page.")
-                Step(3, "Homebrew needs your callsign plus a two-digit hotspot suffix in Settings. "
-                    + "Any two digits work as long as no other hotspot on your DMR ID uses them; 01 is fine.")
+                Step(1, "Speaks the MMDVM dialect of the HomeBrew Repeater Protocol, usually on "
+                    + "port 62031. Most networks run this: TGIF, AmComm, FreeDMR, DMR+/IPSC2 and "
+                    + "the HBLink-based regional networks.")
+                Step(2, "Not BrandMeister. BM reserves both Homebrew dialects for hotspots with a "
+                    + "real RF module and rejects app-only clients — use the BrandMeister "
+                    + "destination, which speaks their sanctioned Open Terminal protocol.")
+                Step(3, "TGIF: make an account at tgif.network and use the password from its self-care page.")
+                Step(4, "Needs your callsign plus a two-digit ESSID suffix in Settings. Any two digits "
+                    + "work as long as no other device on your DMR ID uses them; 01 is fine.")
                 GuideLink("tgif.network", url: "https://tgif.network")
             } header: {
-                SectionLabel("Hotspot destinations (TGIF and others)")
+                SectionLabel("Homebrew (MMDVM) destinations — TGIF and others")
             }
             Section {
                 Step(1, "Create an account at allstarlink.org with a copy of your license, "

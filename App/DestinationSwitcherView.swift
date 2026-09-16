@@ -265,10 +265,11 @@ struct DestinationEditView: View {
                     .keyboardType(.numberPad)
                     .font(CW.mono(14))
             } header: {
-                SectionLabel("Hotspot")
+                SectionLabel("Homebrew (MMDVM)")
             } footer: {
-                FooterNote("Your hotspot or repeater's Homebrew address. "
-                    + "Uses the DMR ID, password, suffix, and location from Settings.")
+                FooterNote("Master address for a network speaking the MMDVM dialect of "
+                    + "Homebrew — TGIF, AmComm, FreeDMR, DMR+ — or your own hotspot or "
+                    + "repeater. Uses the DMR ID, password, suffix, and location from Settings.")
             }
         case .dstar:
             Section {

@@ -4,6 +4,12 @@ import Foundation
 
 enum DestinationKind: String, Codable, CaseIterable, Identifiable {
     case brandmeister
+    /// HomeBrew Repeater Protocol, MMDVMHost (G4KLX) dialect — see `HomebrewClient`,
+    /// whose RPTC layout mirrors MMDVMHost rather than the 306-byte DL5DI one.
+    /// TGIF, AmComm, FreeDMR, DMR+/IPSC2 and HBLink networks. Not BrandMeister:
+    /// BM reserves both HBP dialects for hotspots with an onboard RF module, so
+    /// radioless clients use `.brandmeister` (Open Terminal) instead.
+    /// The raw value stays `hotspot` — saved destinations persist it.
     case hotspot
     case dstar
     case allstar
@@ -38,7 +44,7 @@ enum DestinationKind: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .brandmeister: "DMR · BrandMeister"
-        case .hotspot: "DMR · Hotspot"
+        case .hotspot: "DMR · Homebrew (MMDVM)"
         case .dstar: "D-STAR"
         case .allstar: "AllStar"
         }
@@ -120,7 +126,7 @@ struct Destination: Codable, Identifiable, Equatable, Hashable {
             }
             return host.isEmpty ? "BrandMeister" : host
         case .hotspot:
-            return host.isEmpty ? "Hotspot" : host
+            return host.isEmpty ? "Homebrew" : host
         case .dstar:
             let trimmed = host.trimmingCharacters(in: .whitespaces)
             let reflector = XLXDirectory.reflector(forHost: trimmed)?.name

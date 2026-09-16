@@ -621,8 +621,8 @@ private struct StationSection: View {
             TextField("DMR ID", text: settings.$dmrID)
                 .keyboardType(.numberPad)
                 .font(CW.mono(14))
-            SecureField("Hotspot password", text: settings.$password)
-            TextField("Hotspot suffix", text: settings.$suffix)
+            SecureField("Network password", text: settings.$password)
+            TextField("ESSID suffix", text: settings.$suffix)
                 .keyboardType(.numberPad)
                 .font(CW.mono(14))
             TextField("Location", text: settings.$location)
@@ -630,8 +630,10 @@ private struct StationSection: View {
             SectionLabel("Station")
         } footer: {
             FooterNote("Callsign and DMR ID identify you on every network. "
-                + "The password comes from BrandMeister SelfCare; suffix and "
-                + "location only matter for hotspot destinations.")
+                + "The password is your BrandMeister SelfCare hotspot security key, or "
+                + "the network's own password on Homebrew. The ESSID suffix keeps this "
+                + "app from colliding with another device on your DMR ID; location is "
+                + "Homebrew-only.")
         }
         Section {
             TextField("My node number", text: settings.$aslMyNode)
