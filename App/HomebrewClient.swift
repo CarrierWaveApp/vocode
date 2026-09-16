@@ -244,6 +244,9 @@ final class HomebrewClient {
             sendConfig()
         case .configuring:
             if config.options.isEmpty {
+                // Worth saying out loud: with no statics the master routes
+                // nothing, so the link looks healthy and stays silent.
+                log("no options sent — no talkgroups set, so the master will route nothing")
                 becomeRunning()
             } else {
                 sendOptions()

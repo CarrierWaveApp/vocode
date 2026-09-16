@@ -217,10 +217,12 @@ final class Settings: ObservableObject {
 
     /// MMDVMHost-style options string for the homebrew RPTO packet;
     /// off talkgroups are left out entirely
+    /// Static-talkgroup options for the `RPTO` packet, in the dialect the
+    /// selected network parses. A network that does not recognise the string
+    /// ignores it and sends nothing, so the wrong dialect reads as a healthy
+    /// but silent link — see `DMROptionsDialect`.
     var homebrewOptions: String {
-        activeTalkgroups.enumerated()
-            .map { "TS2_\($0.offset + 1)=\($0.element)" }
-            .joined(separator: ";")
+        DMROptionsDialect.forNetwork(hbNetwork).options(talkgroups: activeTalkgroups)
     }
 
     var rewindConfig: RewindConfig? {
