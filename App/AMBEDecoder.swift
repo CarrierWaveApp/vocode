@@ -106,6 +106,16 @@ final class AudioOutput {
     /// the UI and log instead of silently losing audio
     var onRestart: ((_ reason: String, _ error: Error?) -> Void)?
 
+    /// One-line health for the connection log: engine state, output route,
+    /// and system volume
+    var status: String {
+        let session = AVAudioSession.sharedInstance()
+        let route = session.currentRoute.outputs.map(\.portName).joined(separator: "+")
+        let volume = Int((session.outputVolume * 100).rounded())
+        let state = engine.isRunning ? "engine running" : "engine stopped"
+        return "\(state) · \(route.isEmpty ? "no output" : route) · vol \(volume)%"
+    }
+
     func start() throws {
         let session = AVAudioSession.sharedInstance()
         // .playback, not .playAndRecord: playback routes to Bluetooth A2DP
@@ -134,9 +144,18 @@ final class AudioOutput {
         guard running, !engine.isRunning else {
             return
         }
+        // Engine start/stop is not thread-safe; the decode queue calls this
+        // at call start, the notification observers on main
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.resume(reason: reason) }
+            return
+        }
         do {
             try AVAudioSession.sharedInstance().setActive(true)
             try engine.start()
+            // stop() first: it drops anything queued while the engine was
+            // down, so playback resumes live instead of replaying a backlog
+            player.stop()
             player.play()
             onRestart?(reason, nil)
         } catch {
@@ -146,7 +165,9 @@ final class AudioOutput {
 
     func play(_ samples: [Float]) {
         let count = AVAudioFrameCount(samples.count)
-        guard count > 0,
+        // A stopped engine would queue these and replay them minutes late
+        // once something restarts it
+        guard engine.isRunning, count > 0,
               let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count),
               let ch = buf.floatChannelData?[0]
         else {

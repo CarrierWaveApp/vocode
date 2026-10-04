@@ -6,6 +6,9 @@ final class DecodePipeline {
 
     var onCallStart: ((DMRDPacket) -> Void)?
     var onCallEnd: ((UInt32) -> Void)?
+    /// Per-call decode summary: voice frames, frames mbelib flagged as
+    /// damaged (it repeats the last good frame, then mutes), audio status
+    var onCallStats: ((_ frames: Int, _ damaged: Int, _ status: String) -> Void)?
 
     var onAudioRestart: ((_ reason: String, _ error: Error?) -> Void)? {
         get { audio.onRestart }
@@ -43,6 +46,7 @@ final class DecodePipeline {
             pcm.reserveCapacity(480)
             for frame in frames {
                 pcm.append(contentsOf: decoder.decode(frame))
+                count(decoder.lastErrors)
             }
             audio.play(pcm)
         }
@@ -52,6 +56,7 @@ final class DecodePipeline {
     func submitDStar(_ ambe: [UInt8]) {
         queue.async { [self] in
             audio.play(decoder.decode2400(DStarFrame.cells(from: ambe)))
+            count(decoder.lastErrors)
         }
     }
 
@@ -62,8 +67,18 @@ final class DecodePipeline {
         }
     }
 
+    /// Call start on the Open Terminal and D-STAR paths
     func resetDecoder() {
-        queue.async { [self] in decoder.reset() }
+        queue.async { [self] in
+            flushStatsLocked()
+            decoder.reset()
+            audio.resume(reason: "call start")
+        }
+    }
+
+    /// Call end: emit the decode summary for the call that just finished
+    func flushStats() {
+        queue.async { [self] in flushStatsLocked() }
     }
 
     // MARK: Private
@@ -74,6 +89,28 @@ final class DecodePipeline {
     private let lock = NSLock()
     private var muted: Set<UInt32> = []
     private var currentStream: UInt32 = 0
+    private var statFrames = 0
+    private var statDamaged = 0
+
+    /// Decode-queue only
+    private func count(_ errors: Int32) {
+        statFrames += 1
+        // mbelib's threshold: above 3 uncorrectable errors it repeats the
+        // previous frame's parameters, and after 4 repeats synthesizes silence
+        if errors > 3 {
+            statDamaged += 1
+        }
+    }
+
+    /// Decode-queue only
+    private func flushStatsLocked() {
+        guard statFrames > 0 else {
+            return
+        }
+        onCallStats?(statFrames, statDamaged, audio.status)
+        statFrames = 0
+        statDamaged = 0
+    }
 
     private func handle(_ pkt: DMRDPacket) {
         guard pkt.isGroup else {
@@ -82,11 +119,14 @@ final class DecodePipeline {
 
         if pkt.streamID != currentStream {
             currentStream = pkt.streamID
+            flushStatsLocked()
             decoder.reset()
+            audio.resume(reason: "call start")
             onCallStart?(pkt)
         }
 
         if pkt.frameType == .dataSync, pkt.dataType == .terminator {
+            flushStatsLocked()
             onCallEnd?(pkt.streamID)
             return
         }
@@ -102,6 +142,7 @@ final class DecodePipeline {
         pcm.reserveCapacity(480)
         for frame in burst.ambeFrames() {
             pcm.append(contentsOf: decoder.decode(frame))
+            count(decoder.lastErrors)
         }
         audio.play(pcm)
     }

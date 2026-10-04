@@ -19,6 +19,13 @@ typedef struct ambe_enc ambe_enc;
 ambe_enc *ambe_enc_create(void);
 void ambe_enc_destroy(ambe_enc *enc);
 void ambe_enc_frame(ambe_enc *enc, const int16_t pcm[160], char cells[96]);
+/*
+ * Subtracted from the encoded gain parameter, in log2 units: 1.0 lowers the
+ * decoded level by 6 dB. Measured: with 0 the encode->decode round trip
+ * through mbelib comes out ~13.5 dB hotter than the input, so real radios
+ * clip on anything above about -14 dBFS. See AMBETests/LevelTests.
+ */
+void ambe_enc_set_gain_adjust(ambe_enc *enc, float gain_adjust);
 
 #ifdef __cplusplus
 }

@@ -8,16 +8,25 @@ import Foundation
 final class AMBEEncoder {
     // MARK: Lifecycle
 
-    init?() {
+    /// `trimDb` is the operator's TX level setting on top of the fixed
+    /// calibration; positive is louder on the air
+    init?(trimDb: Int = 0) {
         guard let e = ambe_enc_create() else {
             return nil
         }
         enc = e
+        ambe_enc_set_gain_adjust(e, Self.levelCalibration - Float(trimDb) / 6.02)
     }
 
     deinit { ambe_enc_destroy(enc) }
 
     // MARK: Internal
+
+    /// Subtracted from the encoded gain parameter (log2 units, 1.0 = 6 dB).
+    /// OP25's encoder runs ~13.5 dB hot against mbelib, the scale this app
+    /// plays real radios at, so uncorrected TX clipped on every receiver
+    /// above about -14 dBFS of mic input. Measured in AMBETests/LevelTests.
+    static let levelCalibration: Float = 2.25
 
     /// 160 samples of 8 kHz S16 → 96-cell mbelib-layout frame
     func encode(_ pcm: [Int16]) -> [CChar] {

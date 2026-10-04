@@ -43,6 +43,14 @@ extension MonitorModel {
         }
     }
 
+    /// One line per received call: how many voice frames reached the
+    /// decoder, how many it had to patch or mute, and where the audio went.
+    /// "Saw them talking, heard nothing" splits on this line.
+    func logCallStats(frames: Int, damaged: Int, status: String) {
+        let bad = damaged * 2 > frames || status.hasPrefix("engine stopped")
+        appendLog("rx \(frames) frames, \(damaged) damaged · \(status)", error: bad)
+    }
+
     /// What the network heard: play back the encoded->decoded copy of the
     /// last transmission
     func playLastTX() {

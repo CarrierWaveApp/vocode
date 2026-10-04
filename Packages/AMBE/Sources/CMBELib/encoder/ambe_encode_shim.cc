@@ -27,3 +27,8 @@ extern "C" void ambe_enc_frame(ambe_enc *enc, const int16_t pcm[160], char cells
 	for (int i = 0; i < 96; i++)
 		cells[i] = (char)out[i];
 }
+
+extern "C" void ambe_enc_set_gain_adjust(ambe_enc *enc, float gain_adjust)
+{
+	enc->encoder.set_gain_adjust(gain_adjust);
+}

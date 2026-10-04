@@ -20,6 +20,13 @@ struct TxMonitorSection: View {
                 Text("5 min").tag(300)
                 Text("Off").tag(0)
             }
+            Picker("TX level", selection: settings.$txLevelDb) {
+                Text("-6 dB").tag(-6)
+                Text("-3 dB").tag(-3)
+                Text("Normal").tag(0)
+                Text("+3 dB").tag(3)
+                Text("+6 dB").tag(6)
+            }
             Button("Play last transmission") {
                 model.playLastTX()
             }
@@ -34,7 +41,8 @@ struct TxMonitorSection: View {
             FooterNote("Toggle keys up on one tap and stops on the next. The timeout "
                 + "ends any transmission automatically. Playback hears your last "
                 + "TX after the AMBE encode/decode round trip — what other "
-                + "stations heard.")
+                + "stations heard. TX level trims what the encoder puts on the "
+                + "air; lower it if stations say you are hot.")
         }
     }
 }

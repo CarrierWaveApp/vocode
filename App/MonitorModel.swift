@@ -57,6 +57,9 @@ final class MonitorModel: ObservableObject {
         pipeline.onAudioRestart = { [weak self] reason, error in
             Task { @MainActor in self?.audioRestarted(reason, error: error) }
         }
+        pipeline.onCallStats = { [weak self] frames, damaged, status in
+            Task { @MainActor in self?.logCallStats(frames: frames, damaged: damaged, status: status) }
+        }
     }
 
     // MARK: Internal
@@ -77,6 +80,7 @@ final class MonitorModel: ObservableObject {
     var txPending = false
     // TX time-out timer, latched from settings at key-up; 0 = off
     var txTimeoutSecs = 0
+    var txLevelDb = 0
     var txTimeoutTask: Task<Void, Never>?
     var dstarClient: DExtraClient?
     var iaxClient: IAXClient?
@@ -198,6 +202,7 @@ final class MonitorModel: ObservableObject {
 
     func beginTransmit(_ settings: Settings) {
         txTimeoutSecs = settings.txTimeoutSecs
+        txLevelDb = settings.txLevelDb
         if iaxClient != nil {
             beginAllStarTransmit(settings)
             return
@@ -272,6 +277,7 @@ final class MonitorModel: ObservableObject {
         if let i = heard.firstIndex(where: { $0.id == stream }) {
             heard[i].ended = Date()
         }
+        pipeline.flushStats()
     }
 
     func stationInfo(_ src: UInt32) async -> CallsignInfo? {
@@ -415,10 +421,11 @@ final class MonitorModel: ObservableObject {
     }
 
     private func startTx(rewind: RewindClient, dst: UInt32) {
-        guard let enc = AMBEEncoder() else {
+        guard let enc = AMBEEncoder(trimDb: txLevelDb) else {
             appendLog("AMBE encoder init failed", error: true)
             return
         }
+        appendLog("TX level trim \(txLevelDb >= 0 ? "+" : "")\(txLevelDb) dB")
         let batcher = TxBatcher(encoder: enc) { [weak rewind] payload in
             rewind?.sendTransmitAudio(payload)
         }

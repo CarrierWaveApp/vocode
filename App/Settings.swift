@@ -100,6 +100,8 @@ final class Settings: ObservableObject {
     @AppStorage("pttToggle", store: Settings.store) var pttToggle = false
     // TX time-out timer in seconds; 0 disables it
     @AppStorage("txTimeoutSecs", store: Settings.store) var txTimeoutSecs = 120
+    // On-air level trim in dB on top of the encoder calibration
+    @AppStorage("txLevelDb", store: Settings.store) var txLevelDb = 0
     // QRZ XML API credentials for map geocoding; plain AppStorage matches
     // the existing hotspot-password precedent
     @AppStorage("qrzUser", store: Settings.store) var qrzUser = ""
