@@ -54,6 +54,9 @@ final class MonitorModel: ObservableObject {
         pipeline.onCallEnd = { [weak self] stream in
             Task { @MainActor in self?.closeCall(stream) }
         }
+        pipeline.onAudioRestart = { [weak self] reason, error in
+            Task { @MainActor in self?.audioRestarted(reason, error: error) }
+        }
     }
 
     // MARK: Internal

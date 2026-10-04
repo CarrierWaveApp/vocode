@@ -134,11 +134,17 @@ struct ContentView: View {
             buddyClient.startup(settings)
             model.refreshHistory(settings)
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                model.resumeAudio()
+            }
+        }
         .preferredColorScheme(.dark)
     }
 
     // MARK: Private
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
     @State private var showMap = false
     @State private var showSwitcher = false

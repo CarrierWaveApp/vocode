@@ -47,7 +47,17 @@ struct TXBurst: Identifiable, Equatable {
 
 // MARK: - MicConditioner
 
-/// Speech conditioning for the vocoder
+/// Speech conditioning for the vocoder: high-pass, then a frame-rate peak
+/// limiter that holds the level AMBE likes. No makeup gain and no
+/// waveshaping in the normal path.
+///
+/// History: a sample-rate AGC modulated gain at audio rate (distortion), and
+/// the fixed 2x gain + soft knee that replaced it drove the system AGC's
+/// already-hot output into the knee on every voiced peak, which other
+/// stations heard as "modulated and overdriven". AMBE growls on hot input;
+/// it wants clean speech around -6 dBFS. The limiter here computes one gain
+/// per 20 ms frame (instant attack, slow release) and ramps between frames,
+/// so the gain never changes at audio rate.
 struct MicConditioner {
     // MARK: Internal
 
@@ -56,20 +66,32 @@ struct MicConditioner {
     }
 
     mutating func process(_ frame: inout [Int16]) {
+        var filtered = [Float](repeating: 0, count: frame.count)
+        var peak: Float = 0
         for index in frame.indices {
             let sample = Float(frame[index]) / 32_768
             let highPassed = hpCoeff * (hpPrevOut + sample - hpPrevIn)
             hpPrevIn = sample
             hpPrevOut = highPassed
+            filtered[index] = highPassed
+            peak = max(peak, abs(highPassed))
+        }
 
-            var shaped = highPassed * fixedGain
-            let magnitude = abs(shaped)
-            if magnitude > softKnee {
-                let over = magnitude - softKnee
-                let squashed = softKnee + over / (1 + over * 4)
-                shaped = shaped < 0 ? -squashed : squashed
-            }
-            frame[index] = Int16(max(-0.98, min(0.98, shaped)) * 32_767)
+        // Instant attack: this frame already lands at the ceiling. Slow
+        // release: creep back toward unity between words, not within them.
+        let needed = peak > ceiling ? ceiling / peak : 1
+        let target: Float = needed < gain ? needed : min(needed, gain + (needed - gain) * releasePerFrame)
+        let previous = gain
+        gain = target
+
+        let ramp = min(rampSamples, frame.count)
+        for index in frame.indices {
+            let fraction = index < ramp ? Float(index + 1) / Float(ramp) : 1
+            let frameGain = previous + (target - previous) * fraction
+            let shaped = filtered[index] * frameGain
+            // Safety only: with 6 dB between ceiling and clamp this engages
+            // just for a loud onset caught mid-ramp
+            frame[index] = Int16(max(-clamp, min(clamp, shaped)) * 32_767)
         }
     }
 
@@ -77,14 +99,18 @@ struct MicConditioner {
 
     private var hpPrevIn: Float = 0
     private var hpPrevOut: Float = 0
+    private var gain: Float = 1
 
-    // Deliberately minimal while TX distortion is being bisected: a
-    // ~100 Hz one-pole high-pass, a FIXED 2x makeup gain (the .voiceChat
-    // system AGC handles dynamics), and a soft knee. The earlier dynamic
-    // AGC modulated gain at audio rate, which is itself distortion.
+    /// ~100 Hz one-pole high-pass at 8 kHz
     private let hpCoeff: Float = 0.9245
-    private let fixedGain: Float = 2.0
-    private let softKnee: Float = 0.6
+    /// -6 dBFS peak into the encoder
+    private let ceiling: Float = 0.5
+    /// Fraction of the way back toward the needed gain per 20 ms frame:
+    /// most of the recovery inside ~150 ms
+    private let releasePerFrame: Float = 0.15
+    // 4 ms gain ramp at the start of each frame
+    private let rampSamples = 32
+    private let clamp: Float = 0.95
 }
 
 // MARK: - TxMonitor

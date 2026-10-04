@@ -4,30 +4,63 @@ import XCTest
 final class MicConditionerTests: XCTestCase {
     // MARK: Internal
 
-    func testFixedMakeupGainApplies() {
+    func testSpeechLevelInputPassesAtUnity() {
         var conditioner = MicConditioner()
         var lastPeak: Float = 0
         for var frame in sine(300, amplitude: 0.1, frames: 20) {
             conditioner.process(&frame)
             lastPeak = peak(frame)
         }
-        // 2x fixed gain, minus a little high-pass loss at 300 Hz
-        XCTAssertGreaterThan(lastPeak, 0.15)
-        XCTAssertLessThan(lastPeak, 0.25)
+        // No makeup gain; only a little high-pass loss at 300 Hz
+        XCTAssertGreaterThan(lastPeak, 0.08)
+        XCTAssertLessThan(lastPeak, 0.11)
     }
 
-    func testLoudInputIsLimitedNotWrapped() {
+    func testLoudInputIsHeldAtCeilingNotWrapped() {
         var conditioner = MicConditioner()
-        for var frame in sine(300, amplitude: 0.95, frames: 50) {
+        for (index, var frame) in sine(300, amplitude: 0.95, frames: 50).enumerated() {
             conditioner.process(&frame)
-            XCTAssertLessThanOrEqual(peak(frame), 0.99, "limiter must clamp")
+            XCTAssertLessThanOrEqual(peak(frame), 0.96, "clamp must hold")
+            if index > 0 {
+                XCTAssertLessThanOrEqual(peak(frame), 0.52, "limiter must hold -6 dBFS after the first frame")
+                XCTAssertGreaterThan(peak(frame), 0.45, "limiter must not squash below the ceiling")
+            }
         }
     }
 
+    func testLimiterGainDoesNotJumpBetweenSamples() {
+        var conditioner = MicConditioner()
+        // Steady loud tone: once settled, consecutive samples should differ
+        // by no more than the tone's own slope (sample-rate gain changes
+        // were the earlier "kick drum" distortion)
+        var frames = sine(300, amplitude: 0.95, frames: 10)
+        for index in frames.indices {
+            conditioner.process(&frames[index])
+        }
+        let maxSlope = 0.52 * 2 * Float.pi * 300 / 8_000 * 1.2
+        let settled = frames[5...].flatMap { $0 }
+        for pair in zip(settled, settled.dropFirst()) {
+            let step = abs(Float(pair.1) - Float(pair.0)) / 32_767
+            XCTAssertLessThanOrEqual(step, maxSlope)
+        }
+    }
+
+    func testLimiterReleasesAfterLoudPassage() {
+        var conditioner = MicConditioner()
+        for var frame in sine(300, amplitude: 0.95, frames: 10) {
+            conditioner.process(&frame)
+        }
+        var lastPeak: Float = 0
+        for var frame in sine(300, amplitude: 0.1, frames: 40) {
+            conditioner.process(&frame)
+            lastPeak = peak(frame)
+        }
+        XCTAssertGreaterThan(lastPeak, 0.08, "gain must recover toward unity between words")
+    }
+
     func testRumbleIsAttenuatedMoreThanSpeech() {
-        /// Measure the first frames only: with isolated tones the AGC
-        /// eventually re-boosts whatever the filter removed, but early
-        /// frames show the raw high-pass response
+        /// Early frames show the raw high-pass response before anything
+        /// else settles
         func residual(_ frequency: Float) -> Float {
             var conditioner = MicConditioner()
             var total: Float = 0

@@ -7,12 +7,22 @@ final class DecodePipeline {
     var onCallStart: ((DMRDPacket) -> Void)?
     var onCallEnd: ((UInt32) -> Void)?
 
+    var onAudioRestart: ((_ reason: String, _ error: Error?) -> Void)? {
+        get { audio.onRestart }
+        set { audio.onRestart = newValue }
+    }
+
     func startAudio() throws {
         try audio.start()
     }
 
     func stopAudio() {
         audio.stop()
+    }
+
+    /// See `AudioOutput.resume`; called when the app returns to the foreground
+    func resumeAudio() {
+        audio.resume(reason: "app became active")
     }
 
     func setMuted(_ set: Set<UInt32>) {

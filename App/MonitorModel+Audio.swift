@@ -25,6 +25,24 @@ extension MonitorModel {
         }
     }
 
+    /// Foreground hook: iOS stops the playback engine while the app is
+    /// suspended and doesn't always say so; this restarts it if needed
+    func resumeAudio() {
+        pipeline.resumeAudio()
+    }
+
+    /// Playback engine restarts after interruptions, route changes, and
+    /// foregrounding report here so a failure is visible instead of silent
+    func audioRestarted(_ reason: String, error: Error?) {
+        if let error {
+            audioError = "Audio stopped: \(reason)"
+            appendLog("audio restart failed (\(reason)): \(error.localizedDescription)", error: true)
+        } else {
+            audioError = nil
+            appendLog("audio resumed (\(reason))")
+        }
+    }
+
     /// What the network heard: play back the encoded->decoded copy of the
     /// last transmission
     func playLastTX() {
